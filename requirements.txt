@@ -1,0 +1,15 @@
+networkx~=3.2.1
+geopy~=2.4.1
+pandas~=2.1.4
+gmplot~=1.4.1
+requests~=2.31.0
+openrouteservice~=2.3.3
+pyvis~=0.3.2
+fastkml~=0.12
+shapely~=2.0.2
+matplotlib~=3.8.2
+setuptools~=68.2.2
+numpy~=1.26.2
+pygeoif~=0.7
+
+-e .
