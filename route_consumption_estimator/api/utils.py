@@ -1,5 +1,6 @@
 import json
-import time
+
+import polyline
 
 from route_consumption_estimator.engine.route_engine import EcoTrafficEngine
 from route_consumption_estimator.estimator.estimator import get_routes_graphhopper, get_routes_osrm, get_routes_ors
@@ -78,11 +79,17 @@ def load_vehicle(all_vehicles_data: dict, vehicle_id: str):
     return vehicle
 
 
-def estimate_consumption_routes(routes_information, vehicle):
+def estimate_consumption_routes(routes, routes_information, vehicle):
     all_estimations = []
+    # TODO check if index is the same for route and routes_information
+    #  as it is retrieved afterwards it can be different
     # Create a route class with each route
-    for route_information in routes_information:
-        start_time = time.time()
+    for i, route_information in enumerate(routes_information):
+        # Process route to encode it
+        processed_route = [(item.lat, item.lon) for item in routes[i]['segments']]
+
+        encoded_route = polyline.encode(processed_route, 6)
+
         route = PathModel(segment_start_point=route_information['start_points'],
                           speed_limit_km_h=route_information['max_speeds'],
                           slope=route_information['slopes'])
@@ -107,7 +114,12 @@ def estimate_consumption_routes(routes_information, vehicle):
 
         power_estimator.estimate_power_consumption()
 
+        # Encode polyline using OpenStreetMap Algorithm
         all_estimations.append({'estimation': f'{power_estimator.consumption[-1]} liters',
-                                'time_elapsed_processing': f'{time.time() - start_time} seconds'})
+                                'route': encoded_route})
+
+        # FIXME On the other side encode the processed route by dividing it by 10 and round it to 6 decimal
+        decoded_route = [(round(item[0] / 10, 6), round(item[1] / 10, 6)) for item in
+                         polyline.decode(encoded_route)]
 
     return all_estimations

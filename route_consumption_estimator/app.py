@@ -1,4 +1,5 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request
+import time
 
 from route_consumption_estimator.api.utils import *
 
@@ -10,6 +11,7 @@ all_vehicles_data = load_all_vehicles(VEHICLES_DIR)
 
 @app.route('/routes', methods=['GET'])
 def calculate_route_estimation():
+    start_time = time.time()
     # Coords are LAT,LON
     source = request.args.get('source')
     destination = request.args.get('destination')
@@ -24,9 +26,9 @@ def calculate_route_estimation():
 
     vehicle = load_vehicle(all_vehicles_data, vehicle_id=vehicle_id)
 
-    estimations = estimate_consumption_routes(routes_information, vehicle)
+    estimations = estimate_consumption_routes(routes, routes_information, vehicle)
 
-    return estimations
+    return f'{estimations} with elapsed time {time.time() - start_time}'
 
 
 if __name__ == "__main__":
