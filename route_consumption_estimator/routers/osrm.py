@@ -36,8 +36,6 @@ class OSRM:
             routes = response.json()['routes']
 
             for route in routes:
-                print(route)
-                print("-"*20)
                 # Parse coordinates to Coords class
                 route['geometry']['coordinates'] = [Coords(lat=item[1], lon=item[0]) for item in
                                                     route['geometry']['coordinates']]

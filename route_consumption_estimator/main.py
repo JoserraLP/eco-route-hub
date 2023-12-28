@@ -82,13 +82,13 @@ if __name__ == "__main__":
                              for coordinates in exec_options.coords.split(';')
                              for coord in coordinates.split(',')]
 
-        # routes = get_routes_osrm(route_coordinates)
+        routes = get_routes_osrm(route_coordinates)
 
         # "Parameter 'alternative_routes' is incompatible with parameter '(number of waypoints > 2)'."}
-
+        """
         routes = get_routes_graphhopper(route_coordinates) + get_routes_osrm(route_coordinates) + \
                  get_routes_ors(route_coordinates)
-
+        """
     # Start Eco-Traffic Engine with the given routes
     engine = EcoTrafficEngine(routes)
 

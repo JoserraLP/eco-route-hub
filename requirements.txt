@@ -11,5 +11,7 @@ matplotlib~=3.8.2
 setuptools~=68.2.2
 numpy~=1.26.2
 pygeoif~=0.7
+flask
+
 
 -e .

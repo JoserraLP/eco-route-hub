@@ -30,7 +30,6 @@ def kmz_to_coordinates(file_path) -> list[Coords]:
         for subfeature in feature.features():
 
             if isinstance(subfeature, kml.Placemark):
-                # print(subfeature.to_string())
                 extract_placemark(subfeature)
             elif isinstance(subfeature, kml.Folder):
                 traverse_feature(subfeature)
