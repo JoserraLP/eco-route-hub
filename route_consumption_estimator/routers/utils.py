@@ -1,9 +1,9 @@
-import math
+import concurrent
 from statistics import mean
 
 import pandas as pd
+import polyline
 import requests
-from geopy.distance import geodesic as gd
 
 from route_consumption_estimator.graph.models import Coords
 from route_consumption_estimator.static.constants import *
@@ -37,12 +37,11 @@ def process_route(route_coordinates: list) -> dict:
     # Calculate the extended coordinates along with distances
     route_extended_coordinates, distances = calculate_extended_coords_and_distances(route_coordinates)
     # Retrieve heights
-    heights = retrieve_heights(route_extended_coordinates)
+    heights = retrieve_heights_threads(route_extended_coordinates)
     # Calculate the slopes  with the distances and heights
     slopes = calculate_slopes(distances, heights)
-    # Retrieve maximum speed and additional information
-    max_speeds, add_info = retrieve_max_speeds(route_extended_coordinates)
-
+    # Retrieve maximum speed
+    max_speeds = retrieve_max_speeds_threads(route_extended_coordinates)
     # Retrieve indices for segmented route
     indices = segment_route(max_speeds, slopes)
 
@@ -155,6 +154,65 @@ def retrieve_heights(route_coordinates: list[Coords]) -> list:
     return heights
 
 
+def retrieve_heights_polyline(route_coordinates: list[Coords]) -> list:
+    """
+    Retrieve heights values of the input route coordinates requested as polyline
+
+    :param route_coordinates: input route coordinates
+    :type route_coordinates: list[Coords]
+    :return: list with associated heights
+    :rtype: list
+    """
+    all_coordinates = [(coords.lat, coords.lon) for coords in route_coordinates]
+
+    encoded_polyline = polyline.encode(all_coordinates, 5)
+
+    # Append the encoded polyline to the query
+    request_str = HEIGHT_API_URL + encoded_polyline
+
+    # Perform request and parse to json
+    results = requests.get(url=request_str).json()
+
+    # Add heights results
+    heights = [result['elevation'] for result in results['results']]
+
+    return heights
+
+
+def retrieve_heights_coordinates(route_coordinates: list[Coords]) -> list:
+    """
+    Retrieve heights values of the input route coordinates
+
+    :param route_coordinates: input route coordinates
+    :type route_coordinates: list[Coords]
+    :return: list with associated heights
+    :rtype: list
+    """
+    # Append the coordinates to the query
+    request_str = HEIGHT_API_URL + '|'.join(f'{item.lat},{item.lon}' for item in route_coordinates)
+
+    # Perform request and parse to json
+    results = requests.get(url=request_str).json()
+
+    # Append heights results to list
+    heights = [result['elevation'] for result in results['results']]
+
+    return heights
+
+
+def retrieve_heights_threads(route_coordinates):
+    split_coordinates = list(split_list(route_coordinates, n=501))
+    heights = []
+
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        heights.extend(executor.map(retrieve_heights_coordinates, split_coordinates))
+
+    # Parse from sublist to list
+    heights = [item for sublist in heights for item in sublist]
+
+    return heights
+
+
 def calculate_slopes(distances: list, heights: list) -> list:
     """
     Calculate the slopes of the segments based on the distance and heights of the coordinates
@@ -203,6 +261,45 @@ def calculate_slopes(distances: list, heights: list) -> list:
     df['slope'] = df['slope'].clip(lower=-SLOPE_THRESHOLD, upper=SLOPE_THRESHOLD)
 
     return list(df['slope'])
+
+
+def retrieve_max_speed_coords(coordinates):
+    # Append the coordinates to the query
+    request_str = NOMINATIM_API_URL + "lat=" + str(coordinates.lat) + "&lon=" + str(
+        coordinates.lon) + NOMINATIM_ADD_PARAMS
+
+    # Perform request and parse to json
+    results = requests.get(url=request_str).json()
+
+    # Define variables
+    max_speed, add_info = -1, ""
+
+    if 'extratags' in results:
+        extratags = results['extratags']
+
+        # Append maximum speed value or -1 by default
+        max_speed = int(extratags.pop('maxspeed').split("|")[0]) if 'maxspeed' in extratags else -1
+
+        # Append additional info
+        add_info = results['extratags']
+
+    return max_speed
+
+
+def retrieve_max_speeds_threads(route_coordinates: list[Coords]):
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        max_speeds = list(executor.map(retrieve_max_speed_coords, route_coordinates))
+
+    # Process and extend maximum speed info -> Extend from previous info
+    for i in range(len(max_speeds) - 2):
+        # Get current and next speed
+        cur_max_speed = max_speeds[i]
+        next_max_speed = max_speeds[i + 1]
+        # Check if default value to extend it from previous value
+        if next_max_speed == -1:
+            max_speeds[i + 1] = cur_max_speed
+
+    return max_speeds
 
 
 def retrieve_max_speeds(route_coordinates: list[Coords]):
