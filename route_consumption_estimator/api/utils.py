@@ -116,7 +116,7 @@ def estimate_consumption_routes(routes, routes_information, vehicle):
 
         # Encode polyline using OpenStreetMap Algorithm
         all_estimations.append({'estimation': f'{power_estimator.consumption[-1]} liters',
-                                'route': encoded_route})
+                                'route': fr"{encoded_route}"})
 
         # FIXME On the other side encode the processed route by dividing it by 10 and round it to 6 decimal
         decoded_route = [(round(item[0] / 10, 6), round(item[1] / 10, 6)) for item in
