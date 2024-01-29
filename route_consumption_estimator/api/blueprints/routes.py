@@ -1,22 +1,26 @@
-from flask import Flask, request
 import time
 
-from route_consumption_estimator.api.utils import *
+from flask import Blueprint, jsonify, request
+from route_consumption_estimator.api.security import api_required
+from route_consumption_estimator.api.utils import load_all_vehicles, request_routes, process_route_information, \
+    load_vehicle, estimate_consumption_routes
 
-app = Flask(__name__)
+# routes blueprint
+routes_bp = Blueprint('routes', __name__)
 
 VEHICLES_DIR = '../../experiments_november/vehicles.json'
 all_vehicles_data = load_all_vehicles(VEHICLES_DIR)
 
 
-@app.route('/routes', methods=['GET'])
+@routes_bp.route('/routes', methods=['GET'])
+@api_required
 def calculate_route_estimation():
     start_time = time.time()
     # Coords are LAT,LON
     source = request.args.get('source')
     destination = request.args.get('destination')
     inner_coords = request.args.get('inner_coords', '')
-    vehicle_id = request.args.get('vehicle_id', '')
+    vehicle_id = request.args.get('VehicleID', '')
 
     coordinates = f'{source};{inner_coords};{destination}' if inner_coords else f'{source};{destination}'
 
@@ -28,9 +32,5 @@ def calculate_route_estimation():
 
     estimations = estimate_consumption_routes(routes, routes_information, vehicle)
 
-    return f'{estimations} with elapsed time {time.time() - start_time}'
-
-
-if __name__ == "__main__":
-    app.run(debug=True)
-    # flask run
+    return f'ROUTES_INFO: {[(route["router_distance"], route["router_duration"]) for route in routes]}' \
+           f'\n Estimations: {estimations} with elapsed time {time.time() - start_time}'
