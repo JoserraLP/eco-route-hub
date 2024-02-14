@@ -13,6 +13,10 @@ numpy~=1.26.2
 pygeoif~=0.7
 flask
 polyline
-
+flask_marshmallow
+flask_sqlalchemy
+marshmallow-sqlalchemy
+pymysql
+scipy
 
 -e .
