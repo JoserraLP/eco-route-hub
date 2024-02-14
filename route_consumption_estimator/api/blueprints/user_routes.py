@@ -1,4 +1,6 @@
 from flask import Blueprint, jsonify, request
+
+from route_consumption_estimator.api.constants import DEFAULT_USER_ROUTE_ADDITIONAL_MASS
 from route_consumption_estimator.api.models import *
 from route_consumption_estimator.api.security import api_required
 
@@ -38,26 +40,33 @@ def get_user_route(user_id, record_date):
     return jsonify(result)
 
 
-# Create A route to create A new user route
+# Create a route to create a new user route
 @user_routes_bp.route('/user_routes', methods=['POST'])
 @api_required
 def create_user_route():
     # Get the JSON data from the request
     data = request.get_json()
     # Validate the data
-    if 'UserID' not in data or 'RoutePolyline' not in data or 'RouteType' not in data \
+    if 'UserID' not in data or 'UserVehicleID' not in data or 'RoutePolyline' not in data or 'RouteType' not in data \
             or 'EstimatedConsumption' not in data or 'EstimatedTimeSeconds' not in data \
             or 'EstimatedDistanceMeters' not in data or 'RecordDate' not in data \
             or 'ActualConsumption' not in data or 'ActualTimeSeconds' not in data \
             or 'ActualDistanceMeters' not in data:
         # Return A 400 bad request error
         return jsonify({'message': 'Missing data'}), 400
-    # Create A new user route object
-    user_route = UserRoute(data.get('UserID'), data.get('RoutePolyline'), data.get('RouteType'),
-                           data.get('EstimatedConsumption'), data.get('EstimatedTimeSeconds'),
-                           data.get('EstimatedDistanceMeters'), data.get('RecordDate'),
-                           data.get('ActualConsumption'), data.get('ActualTimeSeconds'),
-                           data.get('ActualDistanceMeters'))
+    # Create a new user route object with default values if not defined
+    user_route = UserRoute(UserID=data.get('UserID'),
+                           UserVehicleID=data.get('UserVehicleID'),
+                           AdditionalMass=data.get('AdditionalMass', DEFAULT_USER_ROUTE_ADDITIONAL_MASS),
+                           RoutePolyline=data.get('RoutePolyline'),
+                           RouteType=data.get('RouteType'),
+                           EstimatedConsumption=data.get('EstimatedConsumption'),
+                           EstimatedTimeSeconds=data.get('EstimatedTimeSeconds'),
+                           EstimatedDistanceMeters=data.get('EstimatedDistanceMeters'),
+                           RecordDate=data.get('RecordDate'),
+                           ActualConsumption=data.get('ActualConsumption'),
+                           ActualTimeSeconds=data.get('ActualTimeSeconds'),
+                           ActualDistanceMeters=data.get('ActualDistanceMeters'))
     # Add the user route to the database
     db.session.add(user_route)
     db.session.commit()
@@ -80,6 +89,7 @@ def update_user_route(user_id, record_date):
     # Get the JSON data from the request
     data = request.get_json()
     # Update the user route attributes
+    user_route.AdditionalMass = data.get('AdditionalMass', user_route.AdditionalMass)
     user_route.RoutePolyline = data.get('RoutePolyline', user_route.RoutePolyline)
     user_route.RouteType = data.get('RouteType', user_route.RoutePolyline)
     user_route.EstimatedConsumption = data.get('EstimatedConsumption', user_route.EstimatedConsumption)

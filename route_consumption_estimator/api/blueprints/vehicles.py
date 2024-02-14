@@ -2,6 +2,8 @@ from flask import Blueprint, jsonify, request
 from route_consumption_estimator.api.models import *
 from route_consumption_estimator.api.security import api_required
 
+from route_consumption_estimator.api.constants import *
+
 # vehicles blueprint
 vehicles_bp = Blueprint('vehicles', __name__)
 
@@ -38,6 +40,8 @@ def get_vehicle(name):
     return jsonify(result)
 
 
+# TODO on create allow all the possible combinations to calculate real value
+
 # Create A route to create A new vehicle
 @vehicles_bp.route('/vehicles', methods=['POST'])
 @api_required
@@ -45,16 +49,33 @@ def create_vehicle():
     # Get the JSON data from the request
     data = request.get_json()
     # Validate the data
-    if 'Name' not in data or 'MotorType' not in data or 'PMaxKw' not in data or 'ConsumptionkWh' not in data \
-            or 'C' not in data:
+    if 'Name' not in data or 'MotorType' not in data or 'UnladenVehMass' not in data or 'PMaxKw' not in data \
+            or 'AvgConsumption' not in data:
         # Return A 400 bad request error
         return jsonify({'message': 'Missing data'}), 400
-    # TODO add values if not defined
+    # Calculate A: it would be added the load mass, but as it is on each execution, watch out
+    # A = ResistanceFactor * (UnladenVehMass + AdditionalMass) * 9,81
+    A = data.get('A',
+                 data.get('ResistanceFactor', DEFAULT_VEHICLE_RF) * (
+                             data.get('UnladenVehMass') + DEFAULT_USER_ROUTE_ADDITIONAL_MASS) * GRAVITY)
+    # Get B or at least by default value
+    B = data.get('B', DEFAULT_VEHICLE_B)
+    # Calculate C
+    # FrontalArea = 0.85 * Width * Height
+    FrontalArea = 0.85 * data.get('Width', 0) * data.get('Height', 0)
+    # C = 0.5 * 1.225 * FrontalArea * Cx * (1 / 3.6)^2
+
+    C = data.get('C',
+                 0.5 * 1.225 * data.get('FrontalArea', FrontalArea) * data.get('Cx') * (1 / 3.6) ** 2)
+
     # Create A new vehicle object
-    vehicle = Vehicle(data.get('Name'), data.get('MotorType'), data.get('UnladenVehMass'), data.get('LoadVehMass'),
-                      data.get('NumSeats'), data.get('Longitude'), data.get('Width'), data.get('Height'),
-                      data.get('ResistanceFactor'), data.get('PMaxKw'), data.get('ConsumptionkWh'), data.get('Gearbox'),
-                      data.get('A'), data.get('C'), data.get('Url'), data.get('ImageUrl'))
+    vehicle = Vehicle(Name=data.get('Name'),
+                      MotorType=data.get('MotorType'),
+                      UnladenVehMass=data.get('UnladenVehMass'),
+                      PMaxKw=data.get('PMaxKw'),
+                      AvgConsumption=data.get('AvgConsumption'),
+                      ResistanceFactor=data.get('ResistanceFactor'),
+                      A=A, B=B, C=C, Url=data.get('Url'), ImageUrl=data.get('ImageUrl'))
     # Add the vehicle to the database
     db.session.add(vehicle)
     db.session.commit()

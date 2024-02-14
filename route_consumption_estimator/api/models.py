@@ -1,11 +1,12 @@
 from route_consumption_estimator import db, ma
+from route_consumption_estimator.api.constants import DEFAULT_VEHICLE_RF, GRAVITY
 
 
 # Define your models and schemas here
 class User(db.Model):
     __tableName__ = 'user'
     UserID = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    Name = db.Column(db.String(50), nullable=False)
+    Name = db.Column(db.String(100), nullable=False)
     Email = db.Column(db.String(50), nullable=False)
     Password = db.Column(db.String(50), nullable=False)
     BirthDate = db.Column(db.DateTime)
@@ -33,38 +34,28 @@ class UserSchema(ma.Schema):
 class Vehicle(db.Model):
     __tableName__ = 'vehicle'
     VehicleID = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    Name = db.Column(db.String(50), nullable=False)
-    MotorType = db.Column(db.Enum('ELECTRIC', 'DIESEL', 'GASOIL', 'HYBRID'), nullable=False)
+    Name = db.Column(db.String(100), nullable=False)
+    MotorType = db.Column(db.Enum('ELECTRIC', 'DIESEL', 'GASOLINE', 'HYBRID'), nullable=False)
     UnladenVehMass = db.Column(db.Integer, nullable=False)
-    LoadVehMass = db.Column(db.Integer, nullable=False)
-    NumSeats = db.Column(db.Integer, nullable=False)
-    Longitude = db.Column(db.Numeric(6, 2))
-    Width = db.Column(db.Numeric(6, 2))
-    Height = db.Column(db.Numeric(6, 2))
-    ResistanceFactor = db.Column(db.Numeric(7, 3), nullable=False)
     PMaxKw = db.Column(db.Integer, nullable=False)
-    ConsumptionkWh = db.Column(db.Numeric(10, 1), nullable=False)
-    Gearbox = db.Column(db.Enum('MANUAL', 'AUTOMATIC'), nullable=False)
-    A = db.Column(db.Integer, nullable=False)
+    AvgConsumption = db.Column(db.Numeric(10, 1), nullable=False)
+    ResistanceFactor = db.Column(db.Numeric(6, 4), nullable=False)
+    A = db.Column(db.Numeric(10, 3), nullable=False)
+    B = db.Column(db.Numeric(10, 3), nullable=False)
     C = db.Column(db.Numeric(10, 3), nullable=False)
     Url = db.Column(db.String(500))
     ImageUrl = db.Column(db.String(500))
 
-    def __init__(self, Name, MotorType, UnladenVehMass, LoadVehMass, NumSeats, Longitude, Width,
-                 Height, ResistanceFactor, PMaxKw, ConsumptionkWh, Gearbox, A, C, Url, ImageUrl):
+    def __init__(self, Name, MotorType, UnladenVehMass, PMaxKw, AvgConsumption, ResistanceFactor,
+                 A, B, C, Url, ImageUrl):
         self.Name = Name
         self.MotorType = MotorType
         self.UnladenVehMass = UnladenVehMass
-        self.LoadVehMass = LoadVehMass
-        self.NumSeats = NumSeats
-        self.Longitude = Longitude
-        self.Width = Width
-        self.Height = Height
-        self.ResistanceFactor = ResistanceFactor
         self.PMaxKw = PMaxKw
-        self.ConsumptionkWh = ConsumptionkWh
-        self.Gearbox = Gearbox
+        self.AvgConsumption = AvgConsumption
+        self.ResistanceFactor = ResistanceFactor
         self.A = A
+        self.B = B
         self.C = C
         self.Url = Url
         self.ImageUrl = ImageUrl
@@ -72,13 +63,15 @@ class Vehicle(db.Model):
     def __repr__(self):
         return f'<Vehicle {self.VehicleID} {self.Name} {self.MotorType}>'
 
+    def recalculate_a(self, AdditionalMass: int):
+        self.A = float(self.ResistanceFactor)*(float(self.UnladenVehMass) + AdditionalMass)*GRAVITY
+
 
 # Define the Vehicle schema
 class VehicleSchema(ma.Schema):
     class Meta:
-        fields = ('VehicleID', 'Name', 'MotorType', 'UnladenVehMass', 'LoadVehMass', 'NumSeats', 'Longitude',
-                  'Width', 'Height', 'ResistanceFactor', 'PMaxKw', 'ConsumptionkWh', 'Gearbox', 'A', 'C', 'Url',
-                  'ImageUrl')
+        fields = ('VehicleID', 'Name', 'MotorType', 'UnladenVehMass', 'PMaxKw', 'AvgConsumption', 'ResistanceFactor',
+                  'A', 'B', 'C', 'Url', 'ImageUrl')
 
 
 class UserVehicle(db.Model):
@@ -91,8 +84,6 @@ class UserVehicle(db.Model):
     IsFav = db.Column(db.Integer, nullable=False)
     user = db.relationship('User', backref='vehicles')
     vehicle = db.relationship('Vehicle', backref='users')
-
-    # TODO see if backref is plural or singular
 
     def __repr__(self):
         return f'<UserVehicle {self.ID} {self.UserID} {self.VehicleID}>'
@@ -114,6 +105,8 @@ class UserRoute(db.Model):
     __tableName__ = 'user_route'
     ID = db.Column(db.Integer, primary_key=True, autoincrement=True)
     UserID = db.Column(db.Integer, db.ForeignKey('user.UserID', ondelete='CASCADE'))
+    UserVehicleID = db.Column(db.Integer, db.ForeignKey('user_vehicle.ID', ondelete='CASCADE'))
+    AdditionalMass = db.Column(db.Integer, nullable=False)
     RoutePolyline = db.Column(db.String(1000), nullable=False)
     RouteType = db.Column(db.Enum('FASTEST', 'SHORTEST', 'ECO'), nullable=False)
     EstimatedConsumption = db.Column(db.Numeric(6, 2), nullable=False)
@@ -128,10 +121,12 @@ class UserRoute(db.Model):
     def __repr__(self):
         return f'<UserRoute {self.ID} {self.UserID} {self.RouteType}>'
 
-    def __init__(self, UserID, RoutePolyline, RouteType, EstimatedConsumption, EstimatedTimeSeconds,
-                 EstimatedDistanceMeters, RecordDate, ActualConsumption, ActualTimeSeconds,
+    def __init__(self, UserID, UserVehicleID, AdditionalMass, RoutePolyline, RouteType, EstimatedConsumption,
+                 EstimatedTimeSeconds, EstimatedDistanceMeters, RecordDate, ActualConsumption, ActualTimeSeconds,
                  ActualDistanceMeters):
         self.UserID = UserID
+        self.UserVehicleID = UserVehicleID
+        self.AdditionalMass = AdditionalMass
         self.RoutePolyline = RoutePolyline
         self.RouteType = RouteType
         self.EstimatedConsumption = EstimatedConsumption
@@ -145,9 +140,9 @@ class UserRoute(db.Model):
 
 class UserRouteSchema(ma.Schema):
     class Meta:
-        fields = ('ID', 'UserID', 'RoutePolyline', 'RouteType', 'EstimatedConsumption', 'EstimatedTimeSeconds',
-                  'EstimatedDistanceMeters', 'RecordDate', 'ActualConsumption', 'ActualTimeSeconds',
-                  'ActualDistanceMeters')
+        fields = ('ID', 'UserID', 'UserVehicleID', 'AdditionalMass', 'RoutePolyline', 'RouteType',
+                  'EstimatedConsumption', 'EstimatedTimeSeconds', 'EstimatedDistanceMeters', 'RecordDate',
+                  'ActualConsumption', 'ActualTimeSeconds', 'ActualDistanceMeters')
 
 
 class UserStats(db.Model):
