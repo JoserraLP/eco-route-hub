@@ -18,5 +18,8 @@ flask_sqlalchemy
 marshmallow-sqlalchemy
 pymysql
 scipy
+cryptography
+openpyxl
+flask-monitoringdashboard
 
 -e .
