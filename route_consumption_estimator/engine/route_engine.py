@@ -76,16 +76,26 @@ class EcoTrafficEngine:
 
         :return:
         """
-        for route in self._routes:
-
+        # Changed to be single routes each path and not connecting them
+        for i, route in enumerate(self._routes):
+            # Define route id
+            route_id = i
             # Retrieve segments
             segments = route['segments']
 
             # Iterate over pairs of coordinates creating only destination nodes
             for idx, (source, destination) in enumerate(zip(segments, segments[1:])):
-                # Get only destination id
-                source_id = self.get_coordinates_id(source)
-                destination_id = self.get_coordinates_id(destination)
+                # Source and destination nodes has the same ID
+                if idx == 0:
+                    source_id = 'source'
+                    destination_id = f"{self.get_coordinates_id(destination)}-r{route_id}"
+                elif idx == len(segments) - 2:
+                    source_id = f"{self.get_coordinates_id(source)}-r{route_id}"
+                    destination_id = 'destination'
+                else:
+                    # Append new identifier with route
+                    source_id = f"{self.get_coordinates_id(source)}-r{route_id}"
+                    destination_id = f"{self.get_coordinates_id(destination)}-r{route_id}"
 
                 # Create the destination node info
                 source_node = Node(node_id=source_id, lat=source.lat, lon=source.lon, height=route['heights'][idx])
@@ -271,7 +281,7 @@ class EcoTrafficEngine:
             # Calculate micro segments of distance with DELTA_S
             # First create a list with DELTA_S for all segments
             micro_segment_distances = [[DELTA_S for _ in range(int(distance // DELTA_S))] for i, distance in
-                                      enumerate(distances)]
+                                       enumerate(distances)]
             # Iterate over the upper segments and add one new element if there is decimals
             for i, micro_segment in enumerate(micro_segment_distances):
                 # If there are decimals, append the new value

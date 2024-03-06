@@ -13,7 +13,7 @@ class OSRM:
         self._routes = []
         self._params = params
 
-    def get_routes(self, coords: list) -> list:
+    def get_routes(self, coords: list, common_source: Coords, common_target: Coords) -> list:
         """
         Get routes from OSRM service with the given coords
 
@@ -41,7 +41,8 @@ class OSRM:
                                                     route['geometry']['coordinates']]
 
                 # Create processed route
-                processed_route = process_route(route_coordinates=route['geometry']['coordinates'])
+                processed_route = process_route(route_coordinates=route['geometry']['coordinates'],
+                                                common_source=common_source, common_target=common_target)
                 # Get router service estimated distance and duration
                 processed_route['router_distance'] = route['distance']
                 processed_route['router_duration'] = route['duration']

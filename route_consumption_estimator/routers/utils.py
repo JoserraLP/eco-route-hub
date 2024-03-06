@@ -24,7 +24,7 @@ def split_list(list_data: list, n: int):
         yield list_data[i:i + n]
 
 
-def process_route(route_coordinates: list) -> dict:
+def process_route(route_coordinates: list, common_source: Coords, common_target: Coords) -> dict:
     """
     Process and segment the input route coordinates and return its related values (segments, heights, max_speed,
     distances and slopes)
@@ -33,9 +33,16 @@ def process_route(route_coordinates: list) -> dict:
     :type route_coordinates: list
     :return: dictionary with the processed route (segments, heights, max_speed, distances and slopes)
     """
+    # Append to routes coordinates the common source
+    route_coordinates.insert(0, common_source)
 
     # Calculate the extended coordinates along with distances
     route_extended_coordinates, distances = calculate_extended_coords_and_distances(route_coordinates)
+
+    # Append to extended route the common target with a distance of 0 (default)
+    route_extended_coordinates.append(common_target)
+    distances.append(0)
+
     # Retrieve heights
     heights = retrieve_heights_threads(route_extended_coordinates)
     # Calculate the slopes  with the distances and heights
@@ -61,23 +68,26 @@ def process_route(route_coordinates: list) -> dict:
             'distances': sum_distances_segment,
             'slopes': mean_slope_segment}
 
+
 import math
+
+
 # TODO translate and document
 def calcular_distancia(coord1_lat, coord1_lon, coord2_lat, coord2_lon):
-
     # Convertir de grados a radianes
     lon1, lat1, lon2, lat2 = map(math.radians, [coord1_lon, coord1_lat, coord2_lon, coord2_lat])
 
     # Fórmula del haversine
     dlon = lon2 - lon1
     dlat = lat2 - lat1
-    a = math.sin(dlat/2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon/2)**2
+    a = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
     c = 2 * math.asin(math.sqrt(a))
 
     # Radio de la Tierra en metros
     radio_tierra = 6371000
 
     return c * radio_tierra
+
 
 def calculate_extended_coords_and_distances(route_coordinates: list):
     """
@@ -204,7 +214,7 @@ def retrieve_heights_threads(route_coordinates):
     split_coordinates = list(split_list(route_coordinates, n=501))
     heights = []
 
-    with concurrent.futures.ThreadPoolExecutor() as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_REQUEST_WORKERS) as executor:
         heights.extend(executor.map(retrieve_heights_coordinates, split_coordinates))
 
     # Parse from sublist to list
@@ -287,7 +297,7 @@ def retrieve_max_speed_coords(coordinates):
 
 
 def retrieve_max_speeds_threads(route_coordinates: list[Coords]):
-    with concurrent.futures.ThreadPoolExecutor() as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_REQUEST_WORKERS) as executor:
         max_speeds = list(executor.map(retrieve_max_speed_coords, route_coordinates))
 
     # Process and extend maximum speed info -> Extend from previous info

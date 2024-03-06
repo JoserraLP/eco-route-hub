@@ -13,7 +13,7 @@ class GraphHopper:
         self._routes = []
         self._params = params
 
-    def get_routes(self) -> list:
+    def get_routes(self, common_source: Coords, common_target: Coords) -> list:
         """
         Get routes from GraphHopper service with the given params
 
@@ -38,7 +38,8 @@ class GraphHopper:
                                                   route['points']['coordinates']]
 
                 # Create the processed route
-                processed_route = process_route(route_coordinates=route['points']['coordinates'])
+                processed_route = process_route(route_coordinates=route['points']['coordinates'],
+                                                common_source=common_source,common_target=common_target)
                 # Get router service estimated distance and duration
                 processed_route['router_distance'] = route['distance']
                 processed_route['router_duration'] = route['time']/1000.0
