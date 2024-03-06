@@ -45,7 +45,7 @@ DEFAULT_MAX_SPEED_VALUES = {
 DELTA_T = 1
 
 # Space
-DELTA_S = 1
+DELTA_S = 1  # Adjust this to the length of the route
 
 # Variables for calculating extended route (new nodes)
 MAX_DISTANCE_BETWEEN_NODES = 100000000
@@ -55,3 +55,5 @@ DISTANCE_BETWEEN_NEW_NODES = 50
 SLOPE_THRESHOLD = 12
 SLOPE_VARIANCE_DIFFERENCE = 0.5
 BATCHING_WINDOW_SIZE = 20
+
+MAX_REQUEST_WORKERS = 4
