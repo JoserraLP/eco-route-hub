@@ -85,7 +85,7 @@ class PowerEnergyEstimator:
                     self._consumption[i] = self._consumption[i - 1] + \
                                            ((0.5 * (self._instant_energy_fixed_kw_h[i] +
                                                     self._instant_energy_fixed_kw_h[i - 1])) /
-                                            self._speed_profile.vehicle.avg_consumption)
+                                            self._speed_profile.vehicle.liters_conversion)
 
     def calculate_experiment_consumption(self, experiment_consumptions):
         for i in range(1, len(experiment_consumptions)):

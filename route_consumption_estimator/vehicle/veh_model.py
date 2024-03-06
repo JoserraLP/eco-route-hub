@@ -7,7 +7,7 @@ class VehicleModel:
     Vehicle model information
     """
 
-    def __init__(self, total_veh_mass: int, p_max_kw: float, avg_consumption: float,
+    def __init__(self, total_veh_mass: int, p_max_kw: float, liters_conversion: float,
                  A: float, B: float, C: float, motor_type: str, gamma: float = 1.05,  auxiliar_consumption_l_h: float = 0):
 
         self._total_mass = total_veh_mass
@@ -16,7 +16,7 @@ class VehicleModel:
 
         self._motor_type = motor_type
 
-        self._avg_consumption = avg_consumption
+        self._liters_conversion = liters_conversion
 
         self._A = A
         self._B = B
@@ -170,14 +170,14 @@ class VehicleModel:
         self._p_max_kw = value
 
     @property
-    def avg_consumption(self):
-        """Get the value of avg_consumption."""
-        return self._avg_consumption
+    def liters_conversion(self):
+        """Get the value of liters_conversion."""
+        return self._liters_conversion
 
-    @avg_consumption.setter
-    def avg_consumption(self, value):
-        """Set the value of avg_consumption."""
-        self._avg_consumption = value
+    @liters_conversion.setter
+    def liters_conversion(self, value):
+        """Set the value of liters_conversion."""
+        self._liters_conversion = value
 
     @property
     def power_percentage(self):

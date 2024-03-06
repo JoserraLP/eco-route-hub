@@ -36,23 +36,23 @@ class Vehicle(db.Model):
     VehicleID = db.Column(db.Integer, primary_key=True, autoincrement=True)
     Name = db.Column(db.String(100), nullable=False)
     MotorType = db.Column(db.Enum('ELECTRIC', 'DIESEL', 'GASOLINE', 'HYBRID'), nullable=False)
-    UnladenVehMass = db.Column(db.Integer, nullable=False)
-    PMaxKw = db.Column(db.Integer, nullable=False)
-    AvgConsumption = db.Column(db.Numeric(10, 1), nullable=False)
-    ResistanceFactor = db.Column(db.Numeric(6, 4), nullable=False)
-    A = db.Column(db.Numeric(10, 3), nullable=False)
-    B = db.Column(db.Numeric(10, 3), nullable=False)
-    C = db.Column(db.Numeric(10, 3), nullable=False)
+    UnladenVehMass = db.Column(db.Numeric(12, 5), nullable=False)
+    PMaxKw = db.Column(db.Numeric(15, 5), nullable=False)
+    LitersConversion = db.Column(db.Numeric(10, 4), nullable=False)
+    ResistanceFactor = db.Column(db.Numeric(20, 10), nullable=False)
+    A = db.Column(db.Numeric(20, 10), nullable=False)
+    B = db.Column(db.Numeric(20, 10), nullable=False)
+    C = db.Column(db.Numeric(20, 10), nullable=False)
     Url = db.Column(db.String(500))
     ImageUrl = db.Column(db.String(500))
 
-    def __init__(self, Name, MotorType, UnladenVehMass, PMaxKw, AvgConsumption, ResistanceFactor,
+    def __init__(self, Name, MotorType, UnladenVehMass, PMaxKw, LitersConversion, ResistanceFactor,
                  A, B, C, Url, ImageUrl):
         self.Name = Name
         self.MotorType = MotorType
         self.UnladenVehMass = UnladenVehMass
         self.PMaxKw = PMaxKw
-        self.AvgConsumption = AvgConsumption
+        self.LitersConversion = LitersConversion
         self.ResistanceFactor = ResistanceFactor
         self.A = A
         self.B = B
@@ -70,7 +70,7 @@ class Vehicle(db.Model):
 # Define the Vehicle schema
 class VehicleSchema(ma.Schema):
     class Meta:
-        fields = ('VehicleID', 'Name', 'MotorType', 'UnladenVehMass', 'PMaxKw', 'AvgConsumption', 'ResistanceFactor',
+        fields = ('VehicleID', 'Name', 'MotorType', 'UnladenVehMass', 'PMaxKw', 'LitersConversion', 'ResistanceFactor',
                   'A', 'B', 'C', 'Url', 'ImageUrl')
 
 
