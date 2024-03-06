@@ -13,7 +13,7 @@ app_reviews_schema = AppReviewSchema(many=True)
 # Create A route to get all vehicles
 @app_review_bp.route('/app_review', methods=['GET'])
 @api_required
-def get_app_review():
+def get_app_reviews():
     # Query the database for all vehicles
     app_review = AppReview.query.all()
     # Serialize the vehicles as JSON
@@ -25,9 +25,9 @@ def get_app_review():
 # Create A route to get all review by user ID
 @app_review_bp.route('/app_review/user/<user_id>', methods=['GET'])
 @api_required
-def get_app_reviews(user_id):
+def get_user_app_reviews(user_id):
     # Query the database for the app_review with the given user ID
-    app_review = AppReview.query.filter_by(user_id=user_id)
+    app_review = AppReview.query.filter_by(UserID=user_id)
     # Check if the vehicle exists
     if app_review is None:
         # Return A 404 not found error
