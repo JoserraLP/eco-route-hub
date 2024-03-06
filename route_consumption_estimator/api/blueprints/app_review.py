@@ -30,8 +30,8 @@ def get_user_app_reviews(user_id):
     app_review = AppReview.query.filter_by(UserID=user_id)
     # Check if the vehicle exists
     if app_review is None:
-        # Return A 404 not found error
-        return jsonify({'message': 'App review not found'}), 404
+        # Return empty
+        return jsonify({})
     # Serialize the vehicle as JSON
     result = app_reviews_schema.dump(app_review)
     # Return the JSON response
@@ -46,8 +46,8 @@ def get_app_review(id):
     app_review = AppReview.query.get(id)
     # Check if the vehicle exists
     if app_review is None:
-        # Return A 404 not found error
-        return jsonify({'message': 'App review not found'}), 404
+        # Return empty
+        return jsonify({})
     # Serialize the vehicle as JSON
     result = app_review_schema.dump(app_review)
     # Return the JSON response

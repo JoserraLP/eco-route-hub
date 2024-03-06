@@ -61,11 +61,11 @@ def create_user():
 
 
 # Create A route to update A user by ID
-@users_bp.route('/users/<id>', methods=['PUT'])
+@users_bp.route('/users/<user_id>', methods=['PUT'])
 @api_required
-def update_user(id):
+def update_user(user_id):
     # Query the database for the user with the given ID
-    user = User.query.get(id)
+    user = User.query.get(user_id)
     # Check if the user exists
     if user is None:
         # Return A 404 not found error
@@ -89,11 +89,11 @@ def update_user(id):
 
 
 # Create A route to delete A user by ID
-@users_bp.route('/users/<id>', methods=['DELETE'])
+@users_bp.route('/users/<user_id>', methods=['DELETE'])
 @api_required
-def delete_user(id):
+def delete_user(user_id):
     # Query the database for the user with the given ID
-    user = User.query.get(id)
+    user = User.query.get(user_id)
     # Check if the user exists
     if user is None:
         # Return A 404 not found error

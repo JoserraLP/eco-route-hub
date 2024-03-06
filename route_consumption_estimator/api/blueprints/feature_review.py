@@ -30,8 +30,8 @@ def get_app_feature_reviews(app_review_id):
     feature_review = FeatureReview.query.filter_by(AppReviewID=app_review_id)
     # Check if the vehicle exists
     if feature_review is None:
-        # Return A 404 not found error
-        return jsonify({'message': 'Feature review not found'}), 404
+        # Return empty
+        return jsonify({})
     # Serialize the vehicle as JSON
     result = feature_reviews_schema.dump(feature_review)
     # Return the JSON response
@@ -46,8 +46,8 @@ def get_feature_review(id):
     feature_review = FeatureReview.query.get(id)
     # Check if the vehicle exists
     if feature_review is None:
-        # Return A 404 not found error
-        return jsonify({'message': 'Feature review not found'}), 404
+        # Return empty
+        return jsonify({})
     # Serialize the vehicle as JSON
     result = feature_review_schema.dump(feature_review)
     # Return the JSON response

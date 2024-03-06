@@ -30,8 +30,8 @@ def get_vehicles_user(user_id):
     user_vehicle = UserVehicle.query.filter_by(UserID=user_id)
     # Check if the vehicle exists
     if user_vehicle is None:
-        # Return A 404 not found error
-        return jsonify({'message': 'User vehicle not found'}), 404
+        # Return empty
+        return jsonify({})
     # Serialize the vehicle as JSON
     result = user_vehicles_schema.dump(user_vehicle)
     # Return the JSON response
@@ -46,8 +46,8 @@ def get_vehicle_user(id):
     user_vehicle = UserVehicle.query.get(id)
     # Check if the vehicle exists
     if user_vehicle is None:
-        # Return A 404 not found error
-        return jsonify({'message': 'User vehicle not found'}), 404
+        # Return empty
+        return jsonify({})
     # Serialize the vehicle as JSON
     result = user_vehicle_schema.dump(user_vehicle)
     # Return the JSON response
@@ -85,8 +85,8 @@ def update_user_vehicle(id):
     user_vehicle = UserVehicle.query.get(id)
     # Check if the user vehicle exists
     if user_vehicle is None:
-        # Return A 404 not found error
-        return jsonify({'message': 'User vehicle not found'}), 404
+        # Return empty
+        return jsonify({})
     # Get the JSON data from the request
     data = request.get_json()
     # Update the user vehicle attributes

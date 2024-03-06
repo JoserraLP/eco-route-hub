@@ -29,8 +29,8 @@ def get_user_stat(user_id):
     user_stat = UserStats.query.get(user_id)
     # Check if the user stat exists
     if user_stat is None:
-        # Return A 404 not found error
-        return jsonify({'message': 'User stat not found'}), 404
+        # Return empty
+        return jsonify({})
     # Serialize the user stat as JSON
     result = user_stats_schema.dump(user_stat)
     # Return the JSON response

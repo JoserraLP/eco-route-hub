@@ -24,39 +24,20 @@ def get_vehicles():
     return jsonify(result)
 
 
-# Create A route to get A vehicle by Name
-@vehicles_bp.route('/vehicles/<name>', methods=['GET'])
-@api_required
-def get_vehicle(name):
-    # Query the database for the vehicle with the given Name
-    vehicle = Vehicle.query.filter_by(Name=name).first()
-    # Check if the vehicle exists
-    if vehicle is None:
-        # Return A 404 not found error
-        return jsonify({'message': 'Vehicle not found'}), 404
-    # Serialize the vehicle as JSON
-    result = vehicle_schema.dump(vehicle)
-    # Return the JSON response
-    return jsonify(result)
-
-
 # Create A route to get A vehicle by ID
-@vehicles_bp.route('/vehicles/<id>', methods=['GET'])
+@vehicles_bp.route('/vehicles/<vehicle_id>', methods=['GET'])
 @api_required
-def get_vehicle_id(id):
+def get_vehicle_id(vehicle_id):
     # Query the database for the vehicle with the given ID
-    vehicle = Vehicle.query.get(id)
+    vehicle = Vehicle.query.get(vehicle_id)
     # Check if the vehicle exists
     if vehicle is None:
-        # Return A 404 not found error
-        return jsonify({'message': 'Vehicle not found'}), 404
+        return jsonify({})
     # Serialize the vehicle as JSON
     result = vehicle_schema.dump(vehicle)
     # Return the JSON response
     return jsonify(result)
 
-
-# TODO on create allow all the possible combinations to calculate real value
 
 # Create A route to create A new vehicle
 @vehicles_bp.route('/vehicles', methods=['POST'])

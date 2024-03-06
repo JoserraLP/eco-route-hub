@@ -32,8 +32,8 @@ def get_user_route(user_id, record_date):
     user_route = UserRoute.query.filter_by(UserID=user_id, RecordDate=record_date).first()
     # Check if the user route exists
     if user_route is None:
-        # Return A 404 not found error
-        return jsonify({'message': 'User route not found'}), 404
+        # Return empty
+        return jsonify({})
     # Serialize the user route as JSON
     result = user_route_schema.dump(user_route)
     # Return the JSON response
