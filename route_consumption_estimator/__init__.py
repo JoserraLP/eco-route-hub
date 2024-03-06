@@ -41,6 +41,15 @@ def create_app():
     from route_consumption_estimator.api.blueprints.user_stats import user_stats_bp
     app.register_blueprint(user_stats_bp)
 
+    from route_consumption_estimator.api.blueprints.user_routes import user_routes_bp
+    app.register_blueprint(user_routes_bp)
+
+    from route_consumption_estimator.api.blueprints.app_review import app_review_bp
+    app.register_blueprint(app_review_bp)
+
+    from route_consumption_estimator.api.blueprints.feature_review import feature_review_bp
+    app.register_blueprint(feature_review_bp)
+
     # Add app to db and ma
     db.init_app(app)
     ma.init_app(app)
