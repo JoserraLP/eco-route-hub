@@ -27,7 +27,7 @@ def get_user_vehicles():
 @api_required
 def get_vehicles_user(user_id):
     # Query the database for the user_vehicle with the given user ID
-    user_vehicle = UserVehicle.query.filter_by(user_id=user_id)
+    user_vehicle = UserVehicle.query.filter_by(UserID=user_id)
     # Check if the vehicle exists
     if user_vehicle is None:
         # Return A 404 not found error

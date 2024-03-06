@@ -29,7 +29,23 @@ def get_vehicles():
 @api_required
 def get_vehicle(name):
     # Query the database for the vehicle with the given Name
-    vehicle = Vehicle.query.filter_by(name=name).first()
+    vehicle = Vehicle.query.filter_by(Name=name).first()
+    # Check if the vehicle exists
+    if vehicle is None:
+        # Return A 404 not found error
+        return jsonify({'message': 'Vehicle not found'}), 404
+    # Serialize the vehicle as JSON
+    result = vehicle_schema.dump(vehicle)
+    # Return the JSON response
+    return jsonify(result)
+
+
+# Create A route to get A vehicle by ID
+@vehicles_bp.route('/vehicles/<id>', methods=['GET'])
+@api_required
+def get_vehicle_id(id):
+    # Query the database for the vehicle with the given ID
+    vehicle = Vehicle.query.get(id)
     # Check if the vehicle exists
     if vehicle is None:
         # Return A 404 not found error
@@ -50,14 +66,14 @@ def create_vehicle():
     data = request.get_json()
     # Validate the data
     if 'Name' not in data or 'MotorType' not in data or 'UnladenVehMass' not in data or 'PMaxKw' not in data \
-            or 'AvgConsumption' not in data:
+            or 'LitersConversion' not in data:
         # Return A 400 bad request error
         return jsonify({'message': 'Missing data'}), 400
     # Calculate A: it would be added the load mass, but as it is on each execution, watch out
     # A = ResistanceFactor * (UnladenVehMass + AdditionalMass) * 9,81
     A = data.get('A',
                  data.get('ResistanceFactor', DEFAULT_VEHICLE_RF) * (
-                             data.get('UnladenVehMass') + DEFAULT_USER_ROUTE_ADDITIONAL_MASS) * GRAVITY)
+                         data.get('UnladenVehMass') + DEFAULT_USER_ROUTE_ADDITIONAL_MASS) * GRAVITY)
     # Get B or at least by default value
     B = data.get('B', DEFAULT_VEHICLE_B)
     # Calculate C
@@ -73,7 +89,7 @@ def create_vehicle():
                       MotorType=data.get('MotorType'),
                       UnladenVehMass=data.get('UnladenVehMass'),
                       PMaxKw=data.get('PMaxKw'),
-                      AvgConsumption=data.get('AvgConsumption'),
+                      LitersConversion=data.get('LitersConversion'),
                       ResistanceFactor=data.get('ResistanceFactor'),
                       A=A, B=B, C=C, Url=data.get('Url'), ImageUrl=data.get('ImageUrl'))
     # Add the vehicle to the database

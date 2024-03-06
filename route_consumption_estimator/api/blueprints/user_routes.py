@@ -29,7 +29,7 @@ def get_user_routes():
 @api_required
 def get_user_route(user_id, record_date):
     # Query the database for the user route with the given user ID and record date
-    user_route = UserRoute.query.filter_by(user_id=user_id, record_date=record_date).first()
+    user_route = UserRoute.query.filter_by(UserID=user_id, RecordDate=record_date).first()
     # Check if the user route exists
     if user_route is None:
         # Return A 404 not found error
@@ -81,7 +81,7 @@ def create_user_route():
 @api_required
 def update_user_route(user_id, record_date):
     # Query the database for the user route with the given user ID and record date
-    user_route = UserRoute.query.filter_by(user_id=user_id, record_date=record_date).first()
+    user_route = UserRoute.query.filter_by(UserID=user_id, RecordDate=record_date).first()
     # Check if the user route exists
     if user_route is None:
         # Return A 404 not found error
@@ -112,7 +112,7 @@ def update_user_route(user_id, record_date):
 @api_required
 def delete_user_route(user_id, record_date):
     # Query the database for the user route with the given user ID and record date
-    user_route = UserRoute.query.filter_by(user_id=user_id, record_date=record_date).first()
+    user_route = UserRoute.query.filter_by(UserID=user_id, RecordDate=record_date).first()
     # Check if the user route exists
     if user_route is None:
         # Return A 404 not found error

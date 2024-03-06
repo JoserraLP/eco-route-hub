@@ -27,7 +27,7 @@ def get_users():
 @api_required
 def get_user(email):
     # Query the database for the user with the given Email
-    user = User.query.filter_by(email=email).first()
+    user = User.query.filter_by(Email=email).first()
     # Check if the user exists
     if user is None:
         # Return A 404 not found error
