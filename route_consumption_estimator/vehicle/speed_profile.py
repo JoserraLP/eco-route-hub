@@ -223,7 +223,7 @@ class SpeedProfile:
         speed_km_h = [speed * 3.6 for speed in self._speed_m_s]
 
         # Iterate over all number of segments (e.g. retrieved from length of speed
-        for i in range(1, len(self._speed_m_s)):
+        for i in range(len(self._speed_m_s)):
             self._resistances.append(self._vehicle.A + self._vehicle.B * speed_km_h[i] +
                                      self._vehicle.C * (speed_km_h[i] * speed_km_h[i]))
 
