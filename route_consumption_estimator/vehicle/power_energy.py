@@ -35,11 +35,6 @@ class PowerEnergyEstimator:
         self._f = interp1d(POWER_PERCENTAGE, ENGINE_PERFORMANCE)
 
     def estimate_power_consumption(self, electric: bool = False):
-        # TODO ask for these values
-        r2 = 0.252
-        r1 = 1 - r2
-        cexp = 0.35
-        bexp = 0.203
 
         # Parse speed from m/s to km/h
         speed_km_h = [speed * 3.6 for speed in self._speed_profile.speed_m_s]
@@ -62,12 +57,12 @@ class PowerEnergyEstimator:
             self._power_percentage[i] = 100 * self._power[i] / (self._speed_profile.vehicle.p_max_kw * 1000)
 
             if speed_km_h[i] < self._speed_profile.vehicle.v1_km_h:
-                factor = ((r1 * speed_km_h[i]) / self._speed_profile.vehicle.v1_km_h) + r2
+                factor = ((R1 * speed_km_h[i]) / self._speed_profile.vehicle.v1_km_h) + R2
             else:
                 factor = 1
 
-            self._performance[i] = (0.01 - (cexp * factor)) * exp(-bexp * self._power_percentage[i] / factor) + (
-                    cexp * factor)
+            self._performance[i] = (0.01 - (CEXP * factor)) * exp(-BEXP * self._power_percentage[i] / factor) + (
+                    CEXP * factor)
 
             self._instant_energy_fixed_kw_h[i] = self._instant_energy_kw_h[i] / self._performance[i]
 

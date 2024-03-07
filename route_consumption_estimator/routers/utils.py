@@ -5,6 +5,8 @@ import pandas as pd
 import polyline
 import requests
 
+import math
+
 from route_consumption_estimator.graph.models import Coords
 from route_consumption_estimator.static.constants import *
 
@@ -69,24 +71,20 @@ def process_route(route_coordinates: list, common_source: Coords, common_target:
             'slopes': mean_slope_segment}
 
 
-import math
-
-
-# TODO translate and document
-def calcular_distancia(coord1_lat, coord1_lon, coord2_lat, coord2_lon):
-    # Convertir de grados a radianes
+def calculate_distance(coord1_lat, coord1_lon, coord2_lat, coord2_lon):
+    # Parse degrees to radians
     lon1, lat1, lon2, lat2 = map(math.radians, [coord1_lon, coord1_lat, coord2_lon, coord2_lat])
 
-    # Fórmula del haversine
-    dlon = lon2 - lon1
-    dlat = lat2 - lat1
-    a = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
+    # Haversine formula
+    # Calculate difference of coordinates
+    lon_diff = lon2 - lon1
+    lat_diff = lat2 - lat1
+    # Calculate a value
+    a = math.sin(lat_diff / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(lon_diff / 2) ** 2
+    # Calculate C value
     c = 2 * math.asin(math.sqrt(a))
 
-    # Radio de la Tierra en metros
-    radio_tierra = 6371000
-
-    return c * radio_tierra
+    return c * EARTH_RADIUS
 
 
 def calculate_extended_coords_and_distances(route_coordinates: list):
@@ -110,24 +108,10 @@ def calculate_extended_coords_and_distances(route_coordinates: list):
         # distance = gd((source.lon, source.lat), (destination.lon, destination.lat)).meters
 
         # Calculate distance between source and destination
-        distance = calcular_distancia(source.lat, source.lon, destination.lat, destination.lon)
+        distance = calculate_distance(source.lat, source.lon, destination.lat, destination.lon)
 
         # Add source node to extended route
         route_extended_coordinates.append(source)
-
-        # If distance greater than threshold
-        # TODO eliminar esta parte en un futuro
-        #  ahora deshabilitada mediante el valor de constante
-        if distance > MAX_DISTANCE_BETWEEN_NODES:
-            # Calculate intermediate coords
-            intermediate_coords, num_segments = calculate_intermediate_coords(source, destination, distance)
-
-            # Append intermediate coords
-            route_extended_coordinates += intermediate_coords
-            # Calculate distance -> It is equal for each segment
-            intermediate_distance = distance / (num_segments - 1)
-            # Append intermediate distances
-            distances += [intermediate_distance] * (num_segments - 1)
 
         # Append the distance
         distances.append(distance)

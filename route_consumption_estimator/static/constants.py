@@ -41,6 +41,9 @@ DEFAULT_MAX_SPEED_VALUES = {
     'motorway_link': 70.0
 }
 
+# Earth radius
+EARTH_RADIUS = 6371000
+
 # Time
 DELTA_T = 1
 

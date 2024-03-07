@@ -2,17 +2,6 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 
-def compare_speed_profile():
-    # TODO adjust
-    pass
-    """
-    plt.plot(acc_space, V_ruta, label="validador")
-    plt.plot(veh_movement.space, [speed * 3.6 for speed in speed_profile], label="graph")
-    plt.legend()
-    plt.show()
-    """
-
-
 def show_consumption(consumption):
     plt.plot(range(len(consumption)), consumption)
     plt.show()

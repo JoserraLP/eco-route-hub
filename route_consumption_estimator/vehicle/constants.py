@@ -4,6 +4,12 @@ GRAVITY = 9.81  # Gravity
 RO = 1.225  # Air density in kg/m^3
 CX = 0.28  # Aerodynamic coefficient
 
+# Consumption constants
+R2 = 0.252
+R1 = 1 - R2
+CEXP = 0.35
+BEXP = 0.203
+
 # Idling consumption = ralenti
 IDLING_CONSUMPTION = 0.7
 

@@ -229,31 +229,6 @@ class SpeedProfile:
 
         return self._resistances
 
-    def calculo_pendientes(self, V, t, h, pasos):
-        # TODO adjust the next method to this one
-        l_tramo = [0]
-        trip = [0]
-        Delta_h = [0]
-        seno_rampa = [0]
-        for i in range(1, pasos):
-
-            l_tramo.append((0.5 / 3.6) * (V[i] + V[i - 1]) * (t[i] - t[i - 1]))  # Longitud(m)
-            trip.append(trip[i - 1] + l_tramo[i])  # Distancia recorrida(m)
-
-            Delta_h.append(h[i] - h[i - 1])
-
-            if l_tramo[i] == 0:
-                seno_rampa.append(0)
-            else:
-                seno_rampa.append(Delta_h[i] / l_tramo[i])
-                if abs(seno_rampa[i]) > 0.2:
-                    if V[i] < 5:
-                        seno_rampa[i] = 0
-                    else:
-                        seno_rampa[i] = 0.2 * seno_rampa[i] / abs(seno_rampa[i])
-
-        return seno_rampa, trip
-
     def calculate_slopes(self, heights):
         """
         Calculate slopes at each instant. Used only for experiments

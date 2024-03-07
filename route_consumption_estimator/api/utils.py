@@ -49,8 +49,6 @@ def process_route_information(routes: list):
 
 def estimate_consumption_routes(routes, routes_information, vehicle):
     all_estimations = []
-    # TODO check if index is the same for route and routes_information
-    #  as it is retrieved afterwards it can be different
     # Create a route class with each route
     for i, route_information in enumerate(routes_information):
         # Process route to encode it
