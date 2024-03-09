@@ -52,7 +52,10 @@ def process_route(route_coordinates: list, common_source: Coords, common_target:
     # Retrieve maximum speed
     max_speeds = retrieve_max_speeds_threads(route_extended_coordinates)
     # Retrieve indices for segmented route
-    indices = segment_route(max_speeds, slopes)
+    # This method is commented as it removes too much points
+    # indices = segment_route(max_speeds, slopes)
+    # Define the indices as the number of points (e.g. max speeds length)
+    indices = range(len(max_speeds))
 
     # Calculate sum of distances of the non-selected nodes
     sum_distances_segment = [sum(distances[i:j]) for i, j in zip(indices,
@@ -289,6 +292,9 @@ def retrieve_max_speeds_threads(route_coordinates: list[Coords]):
         # Get current and next speed
         cur_max_speed = max_speeds[i]
         next_max_speed = max_speeds[i + 1]
+        if cur_max_speed == -1:
+            # This value is default (invented)
+            max_speeds[i] = 50
         # Check if default value to extend it from previous value
         if next_max_speed == -1:
             max_speeds[i + 1] = cur_max_speed

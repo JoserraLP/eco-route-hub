@@ -1,18 +1,17 @@
 import json
 
 import polyline
+from tqdm import tqdm
 
 from route_consumption_estimator.engine.route_engine import EcoTrafficEngine
 from route_consumption_estimator.engine.utils import calculate_distances, calculate_slopes
 from route_consumption_estimator.estimator.estimator import get_routes_graphhopper, get_routes_osrm, get_routes_ors
 from route_consumption_estimator.graph.models import Coords
 from route_consumption_estimator.path.path_model import PathModel
-from route_consumption_estimator.vehicle.constants import POWER_PERCENTAGE, ACC_LIMIT_PROPORTION, CX, RO, GRAVITY, \
-    AREA_FACTOR, ENGINE_PERFORMANCE
 from route_consumption_estimator.vehicle.power_energy import PowerEnergyEstimator
 from route_consumption_estimator.vehicle.speed_profile import SpeedProfile
 from route_consumption_estimator.vehicle.veh_model import VehicleModel
-from route_consumption_estimator.visualization.utils import show_graph
+from route_consumption_estimator.visualization.utils import plot_coordinates_on_map
 
 
 def load_all_vehicles(vehicles_dir):
@@ -22,9 +21,9 @@ def load_all_vehicles(vehicles_dir):
     return all_vehicles_data
 
 
-def request_routes(coordinates: str):
+def request_routes(full_coordinates: str):
     route_coordinates = [Coords(lat=float(coordinates.split(',')[0]), lon=float(coordinates.split(',')[1]))
-                         for coordinates in coordinates.split(';')]
+                         for coordinates in full_coordinates.split(';')]
 
     # Define source and target to be the same over all routes
     source = route_coordinates[0]

@@ -1,6 +1,6 @@
 import time
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, request
 
 from route_consumption_estimator.api.constants import DEFAULT_USER_ROUTE_ADDITIONAL_MASS
 from route_consumption_estimator.api.models import Vehicle
@@ -29,42 +29,47 @@ def calculate_route_estimation():
 
     routes = request_routes(coordinates)
 
-    routes_information = process_route_information(routes)
+    if routes:
 
-    # Get vehicle to simulate
-    vehicle = Vehicle.query.get(vehicle_id)
+        routes_information = process_route_information(routes)
 
-    # Update the vehicle A value with the additional mass
-    if additional_mass:
-        vehicle.recalculate_a(int(additional_mass))
+        # Get vehicle to simulate
+        vehicle = Vehicle.query.get(vehicle_id)
 
-    # Create a vehicle using the simulator model
-    simulator_vehicle = VehicleModel(total_veh_mass=int(vehicle.UnladenVehMass + int(additional_mass)),
-                                     liters_conversion=float(vehicle.LitersConversion),
-                                     p_max_kw=float(vehicle.PMaxKw),
-                                     A=float(vehicle.A),
-                                     B=float(vehicle.B),
-                                     C=float(vehicle.C),
-                                     motor_type=str(Vehicle.MotorType))
+        # Update the vehicle A value with the additional mass
+        if additional_mass:
+            vehicle.recalculate_a(int(additional_mass))
 
-    estimations = estimate_consumption_routes(routes, routes_information, simulator_vehicle)
+        # Create a vehicle using the simulator model
+        simulator_vehicle = VehicleModel(total_veh_mass=int(vehicle.UnladenVehMass + int(additional_mass)),
+                                         liters_conversion=float(vehicle.LitersConversion),
+                                         p_max_kw=float(vehicle.PMaxKw),
+                                         A=float(vehicle.A),
+                                         B=float(vehicle.B),
+                                         C=float(vehicle.C),
+                                         motor_type=str(Vehicle.MotorType))
 
-    # Merge both routes and estimations
-    routes_estimations = [{**x, **y} for x, y in zip(routes, estimations)]
+        estimations = estimate_consumption_routes(routes, routes_information, simulator_vehicle)
 
-    # print(routes_estimations)
+        # Merge both routes and estimations
+        routes_estimations = [{**x, **y} for x, y in zip(routes, estimations)]
 
-    # Filter the route: Eco, Shortest and Fastest
-    consumption_index = min(enumerate(routes_estimations), key=lambda x: x[1]['energy_consumption'])[0]
-    distance_index = min(enumerate(routes_estimations), key=lambda x: x[1]['distance'])[0]
-    time_index = min(enumerate(routes_estimations), key=lambda x: x[1]['time'])[0]
+        # print(routes_estimations)
 
-    # Define final routes
-    final_routes = {
-        'eco': estimations[consumption_index],
-        'shortest': estimations[distance_index],
-        'fastest': estimations[time_index]
-    }
+        # Filter the route: Eco, Shortest and Fastest
+        consumption_index = min(enumerate(routes_estimations), key=lambda x: x[1]['energy_consumption'])[0]
+        distance_index = min(enumerate(routes_estimations), key=lambda x: x[1]['distance'])[0]
+        time_index = min(enumerate(routes_estimations), key=lambda x: x[1]['time'])[0]
+
+        # Define final routes
+        final_routes = {
+            'eco': estimations[consumption_index],
+            'shortest': estimations[distance_index],
+            'fastest': estimations[time_index]
+        }
+    else:
+        # Define final routes
+        final_routes = {}
 
     # f'ROUTES_INFO: {[(route["router_distance"], route["router_duration"]) for route in routes]}' \
     #            f'\n Estimations: {estimations} with elapsed time {time.time() - start_time}'
