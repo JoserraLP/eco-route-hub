@@ -1,3 +1,4 @@
+import requests
 from openrouteservice import Client, convert
 from openrouteservice.directions import directions
 
@@ -28,38 +29,43 @@ class OpenRouteService:
         # Swap order of the coordinates (longitude, latitude)
         coords = [[item.lon, item.lat] for item in coords]
 
-        # Perform query using params if they exists
-        if self._params:
-            routes = directions(self._client, coords, alternative_routes=self._params)['routes']
-        else:
-            routes = directions(self._client, coords)['routes']
+        # If there is a timeout, then return an empty list
+        try:
+            # Perform query using params if they exists
+            if self._params:
+                routes = directions(self._client, coords, alternative_routes=self._params)['routes']
+            else:
+                routes = directions(self._client, coords)['routes']
 
-        # Create a list for the processed routes
-        processed_routes = []
+            # Create a list for the processed routes
+            processed_routes = []
 
-        # Check if there exists the routes
-        if routes:
+            # Check if there exists the routes
+            if routes:
 
-            for route in routes:
-                # Decode each route polyline
-                route['geometry'] = convert.decode_polyline(route['geometry'])
+                for route in routes:
+                    # Decode each route polyline
+                    route['geometry'] = convert.decode_polyline(route['geometry'])
 
-                # Parse coordinates to Coords class
-                route['geometry']['coordinates'] = [Coords(lat=item[1], lon=item[0]) for item in
-                                                    route['geometry']['coordinates']]
+                    # Parse coordinates to Coords class
+                    route['geometry']['coordinates'] = [Coords(lat=item[1], lon=item[0]) for item in
+                                                        route['geometry']['coordinates']]
 
-                # Create processed route
-                processed_route = process_route(route_coordinates=route['geometry']['coordinates'],
-                                                common_source=common_source, common_target=common_target)
-                # Get router service estimated distance and duration
-                processed_route['router_distance'] = route['summary']['distance']
-                processed_route['router_duration'] = route['summary']['duration']
+                    # Create processed route
+                    processed_route = process_route(route_coordinates=route['geometry']['coordinates'],
+                                                    common_source=common_source, common_target=common_target)
+                    # Get router service estimated distance and duration
+                    processed_route['router_distance'] = route['summary']['distance']
+                    processed_route['router_duration'] = route['summary']['duration']
 
-                # Append the processed route
-                processed_routes.append(processed_route)
+                    # Append the processed route
+                    processed_routes.append(processed_route)
 
-        # Update the routes with the parsed geometries
-        self._routes = processed_routes
+            # Update the routes with the parsed geometries
+            self._routes = processed_routes
+        except requests.exceptions.Timeout:
+            print(f"There is a timeout retrieving routes from ORS service...")
+            self._routes = []
 
         return self._routes
 

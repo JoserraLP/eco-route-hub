@@ -20,35 +20,40 @@ class GraphHopper:
         :return: routes
         :rtype: list
         """
-        # Perform query
-        response = requests.get("https://graphhopper.com/api/1/route",
-                                params=self._params)
+        # If there is a timeout, then return an empty list
+        try:
+            # Perform query
+            response = requests.get("https://graphhopper.com/api/1/route", params=self._params)
 
-        # Create a list for the processed routes
-        processed_routes = []
+            # Create a list for the processed routes
+            processed_routes = []
 
-        # Check if there exists the response
-        if response.status_code == 200:
-            # Store the routes from response
-            routes = response.json()['paths']
+            # Check if there exists the response
+            if response.status_code == 200:
+                # Store the routes from response
+                routes = response.json()['paths']
 
-            for route in routes:
-                # Parse coordinates to Coords class
-                route['points']['coordinates'] = [Coords(lat=item[1], lon=item[0]) for item in
-                                                  route['points']['coordinates']]
+                for route in routes:
+                    # Parse coordinates to Coords class
+                    route['points']['coordinates'] = [Coords(lat=item[1], lon=item[0]) for item in
+                                                      route['points']['coordinates']]
 
-                # Create the processed route
-                processed_route = process_route(route_coordinates=route['points']['coordinates'],
-                                                common_source=common_source,common_target=common_target)
-                # Get router service estimated distance and duration
-                processed_route['router_distance'] = route['distance']
-                processed_route['router_duration'] = route['time']/1000.0
+                    # Create the processed route
+                    processed_route = process_route(route_coordinates=route['points']['coordinates'],
+                                                    common_source=common_source,common_target=common_target)
+                    # Get router service estimated distance and duration
+                    processed_route['router_distance'] = route['distance']
+                    processed_route['router_duration'] = route['time']/1000.0
 
-                # Append the processed route
-                processed_routes.append(processed_route)
+                    # Append the processed route
+                    processed_routes.append(processed_route)
 
-        # Update the routes with the parsed geometries
-        self._routes = processed_routes
+            # Update the routes with the parsed geometries
+            self._routes = processed_routes
+
+        except requests.exceptions.Timeout:
+            print(f"There is a timeout retrieving routes from GraphHopper service...")
+            self._routes = []
 
         return self._routes
 

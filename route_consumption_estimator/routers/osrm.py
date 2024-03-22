@@ -1,3 +1,5 @@
+import os
+
 import requests
 
 from route_consumption_estimator.graph.models import Coords
@@ -23,35 +25,46 @@ class OSRM:
         :rtype: list
         """
         # Perform query
-        response = requests.get("https://router.project-osrm.org/route/v1/driving/" +
-                                ";".join(f"{coord.lon},{coord.lat}" for coord in coords),
-                                params=self._params)
+        # Change the address
+        if os.name == 'nt':
+            endpoint = '127.0.0.1'
+        else:
+            endpoint = 'localhost'
 
-        # Create a list for the processed routes
-        processed_routes = []
+        # If there is a timeout, then return an empty list
+        try:
+            response = requests.get(f"http://{endpoint}:5002/route/v1/driving/" +
+                                    ";".join(f"{coord.lon},{coord.lat}" for coord in coords),
+                                    params=self._params)
 
-        # Check if there exists the response
-        if response:
-            # Store the routes from response
-            routes = response.json()['routes']
+            # Create a list for the processed routes
+            processed_routes = []
 
-            for route in routes:
-                # Parse coordinates to Coords class
-                route['geometry']['coordinates'] = [Coords(lat=item[1], lon=item[0]) for item in
-                                                    route['geometry']['coordinates']]
+            # Check if there exists the response
+            if response:
+                # Store the routes from response
+                routes = response.json()['routes']
 
-                # Create processed route
-                processed_route = process_route(route_coordinates=route['geometry']['coordinates'],
-                                                common_source=common_source, common_target=common_target)
-                # Get router service estimated distance and duration
-                processed_route['router_distance'] = route['distance']
-                processed_route['router_duration'] = route['duration']
+                for route in routes:
+                    # Parse coordinates to Coords class
+                    route['geometry']['coordinates'] = [Coords(lat=item[1], lon=item[0]) for item in
+                                                        route['geometry']['coordinates']]
 
-                # Append the processed route
-                processed_routes.append(processed_route)
+                    # Create processed route
+                    processed_route = process_route(route_coordinates=route['geometry']['coordinates'],
+                                                    common_source=common_source, common_target=common_target)
+                    # Get router service estimated distance and duration
+                    processed_route['router_distance'] = route['distance']
+                    processed_route['router_duration'] = route['duration']
 
-        # Update the routes with the parsed geometries
-        self._routes = processed_routes
+                    # Append the processed route
+                    processed_routes.append(processed_route)
+
+            # Update the routes with the parsed geometries
+            self._routes = processed_routes
+        except requests.exceptions.Timeout:
+            print(f"There is a timeout retrieving routes from OSRM service...")
+            self._routes = []
 
         return self._routes
 
