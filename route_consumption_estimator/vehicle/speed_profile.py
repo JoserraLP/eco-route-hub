@@ -207,8 +207,11 @@ class SpeedProfile:
         # Iterate over all number of segments (e.g. retrieved from length of speed
         for i in range(1, len(speed_km_h)):
 
-            # Calculate acceleration value with the difference of speeds in time
-            value = (1 / 3.6) * (speed_km_h[i] - speed_km_h[i - 1]) / (self._time[i] - self._time[i - 1])
+            if self._time[i] - self._time[i-1] > 0:
+                # Calculate acceleration value with the difference of speeds in time
+                value = (1 / 3.6) * (speed_km_h[i] - speed_km_h[i - 1]) / (self._time[i] - self._time[i - 1])
+            else:
+                value = 0
 
             if value > self._acceleration_limit:
                 self._acceleration.append(self._acceleration_limit)
