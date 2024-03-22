@@ -213,12 +213,21 @@ class EcoTrafficEngine:
 
         return relation
 
-    def get_routes_information(self):
+    def get_routes_information(self, avg_route_distance: float):
         """
         Get the routes information divided by delta_s segments
 
+        :param avg_route_distance: average distance of the routes to calculate delta_s
+        :type avg_route_distance: float
+
         :return:
         """
+        delta_s = DELTA_S
+        # If it is greater than the first threshold
+        if avg_route_distance > DELTA_S_MIN_INTERVAL_DISTANCE:
+            # Calculate the specified delta_s value (must be integer)
+            delta_s = int(DELTA_S_MAX*avg_route_distance/DELTA_S_MAX_INTERVAL_DISTANCE)
+
         routes_information = []
         # Get source and target (there should be only one of each)
         sources = [x for x in self._graph.nodes() if self._graph.in_degree(x) == 0]
@@ -263,7 +272,7 @@ class EcoTrafficEngine:
                 instant_speed, instant_slope = [], []
 
                 # Calculate num micro segments
-                num_micro_segments = int(distance // DELTA_S) + 1
+                num_micro_segments = int(distance // delta_s) + 1
 
                 # Iterate over the number of micro segments to store the speeds and processed slopes
                 for _ in range(num_micro_segments):
@@ -278,15 +287,15 @@ class EcoTrafficEngine:
             for slopes_i in micro_segment_slopes:
                 micro_segment_slopes_acc.append(sum(slopes_i))
 
-            # Calculate micro segments of distance with DELTA_S
-            # First create a list with DELTA_S for all segments
-            micro_segment_distances = [[DELTA_S for _ in range(int(distance // DELTA_S))] for i, distance in
+            # Calculate micro segments of distance with delta_s
+            # First create a list with delta_s for all segments
+            micro_segment_distances = [[delta_s for _ in range(int(distance // delta_s))] for i, distance in
                                        enumerate(distances)]
             # Iterate over the upper segments and add one new element if there is decimals
             for i, micro_segment in enumerate(micro_segment_distances):
                 # If there are decimals, append the new value
-                if distances[i] % DELTA_S != 0:
-                    micro_segment.append(distances[i] % DELTA_S)
+                if distances[i] % delta_s != 0:
+                    micro_segment.append(distances[i] % delta_s)
 
             # Flatten micro segment speeds, slopes and distances
             micro_segment_speeds = [item for sublist in micro_segment_speeds for item in sublist]

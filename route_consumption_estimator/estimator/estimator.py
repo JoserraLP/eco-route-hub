@@ -5,8 +5,9 @@ from route_consumption_estimator.routers.graphhopper import GraphHopper
 from route_consumption_estimator.routers.ors import OpenRouteService
 from route_consumption_estimator.routers.osrm import OSRM
 
+# Max is 3
 OSRM_QUERY_PARAMS = {
-    "alternatives": 2,
+    "alternatives": 3,
     "geometries": "geojson",
     "annotations": "nodes",
     "overview": "full"  # More precise routing coordinates
@@ -30,8 +31,8 @@ GRAPHHOPPER_QUERY_PARAMS = {
     "round_trip.seed": "0",
     "key": os.environ.get("GRAPHHOPPER_KEY")
 }
-
-OPENROUTESERVICE_QUERY_PARAMS = {"share_factor": 0.6, "target_count": 2, "weight_factor": 0.8}
+# Max is 3
+OPENROUTESERVICE_QUERY_PARAMS = {"share_factor": 0.6, "target_count": 3, "weight_factor": 0.8}
 
 
 def get_routes_osrm(coords: list, common_source: Coords, common_target: Coords):

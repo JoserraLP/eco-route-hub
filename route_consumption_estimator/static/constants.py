@@ -49,6 +49,9 @@ DELTA_T = 1
 
 # Space
 DELTA_S = 1  # Adjust this to the length of the route
+DELTA_S_MAX = 50  # meters
+DELTA_S_MIN_INTERVAL_DISTANCE = 50000  # 50km
+DELTA_S_MAX_INTERVAL_DISTANCE = 1000000  # 1000km
 
 # Variables for calculating extended route (new nodes)
 MAX_DISTANCE_BETWEEN_NODES = 100000000

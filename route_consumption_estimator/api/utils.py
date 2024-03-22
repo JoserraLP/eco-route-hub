@@ -1,7 +1,7 @@
 import json
 
+import numpy as np
 import polyline
-from tqdm import tqdm
 
 from route_consumption_estimator.engine.route_engine import EcoTrafficEngine
 from route_consumption_estimator.engine.utils import calculate_distances, calculate_slopes
@@ -11,7 +11,6 @@ from route_consumption_estimator.path.path_model import PathModel
 from route_consumption_estimator.vehicle.power_energy import PowerEnergyEstimator
 from route_consumption_estimator.vehicle.speed_profile import SpeedProfile
 from route_consumption_estimator.vehicle.veh_model import VehicleModel
-from route_consumption_estimator.visualization.utils import plot_coordinates_on_map
 
 
 def load_all_vehicles(vehicles_dir):
@@ -29,9 +28,17 @@ def request_routes(full_coordinates: str):
     source = route_coordinates[0]
     target = route_coordinates[-1]
 
-    routes = get_routes_graphhopper(route_coordinates, common_source=source, common_target=target) + \
-             get_routes_osrm(route_coordinates, common_source=source, common_target=target) + \
-             get_routes_ors(route_coordinates, common_source=source, common_target=target)
+    routes_graphhopper = get_routes_graphhopper(route_coordinates, common_source=source, common_target=target)
+    routes_osrm = get_routes_osrm(route_coordinates, common_source=source, common_target=target)
+    routes_ors = get_routes_ors(route_coordinates, common_source=source, common_target=target)
+
+    print(f"Routes from GRAPHOPPER {len(routes_graphhopper)}")
+    print(f"Routes from OSRM {len(routes_osrm)}")
+    print(f"Routes from ORS {len(routes_ors)}")
+
+    routes = routes_graphhopper + routes_osrm + routes_ors
+
+    print(f"Total possible routes {len(routes)}")
 
     return routes
 
@@ -42,8 +49,14 @@ def process_route_information(routes: list):
 
     # Process the routes
     engine.store_routes_graph()
+
+    # router_distance
+    avg_route_distance = np.mean([route['router_distance'] for route in routes])
+
     # Get the routes information (by micro segments)
-    return engine.get_routes_information()
+    routes_information = engine.get_routes_information(avg_route_distance)
+
+    return routes_information
 
 
 def estimate_consumption_routes(routes, routes_information, vehicle):
@@ -51,7 +64,8 @@ def estimate_consumption_routes(routes, routes_information, vehicle):
     # Create a route class with each route
     for i, route_information in enumerate(routes_information):
         # Process route to encode it
-        processed_route = [(item.lat, item.lon) for item in routes[i]['segments']]
+        # processed_route = [(item.lat, item.lon) for item in routes[i]['segments']]
+        processed_route = [(item.lat, item.lon) for item in routes[i]['segments_representation']]
 
         encoded_route = polyline.encode(processed_route, 6)
 
@@ -80,10 +94,10 @@ def estimate_consumption_routes(routes, routes_information, vehicle):
         power_estimator.estimate_power_consumption(electric=vehicle.motor_type == 'ELECTRIC')
 
         # Encode polyline using OpenStreetMap Algorithm
-        all_estimations.append({'energy_consumption': f'{power_estimator.consumption[-1]}',
-                                'distance': route.total_distance,
-                                'time': speed_profile.time[-1],
-                                'route': fr"{encoded_route}"})
+        all_estimations.append({'EnergyConsumption': f'{power_estimator.consumption[-1]}',
+                                'Distance': route.total_distance,
+                                'Time': speed_profile.time[-1],
+                                'Route': fr"{encoded_route}"})
 
     return all_estimations
 
@@ -121,9 +135,10 @@ def calculate_real_consumption(heights, speeds, times, vehicle: VehicleModel):
     # electric=vehicle.motor_type == 'ELECTRIC'
     power_estimator.estimate_power_consumption()
 
-    return {'energy_consumption': power_estimator.consumption[-1],
-            'distance': segment_start_point[-1],
-            'time': speed_profile.time[-1]}, speed_profile.acceleration
+    return {'EnergyConsumption': power_estimator.consumption[-1],
+            'Distance': segment_start_point[-1],
+            'Time': speed_profile.time[-1]}, speed_profile.acceleration
+
 
 
 def evaluate_consumption(speeds, accelerations, total_length):
@@ -162,10 +177,9 @@ def evaluate_consumption(speeds, accelerations, total_length):
     print(f"% of time acceleration greater than {greater_threshold}: {percentage_acceleration_greater_threshold}")
     """
 
-    total_score = {'num_stops_per_km': get_num_stops_per_km_score(stops_per_km),
-                   'acceleration_lower_threshold': get_acceleration_lower_threshold_score(
-                       percentage_acceleration_lower_threshold),
-                   'acceleration_greater_threshold': get_acceleration_greater_threshold_score(
+    total_score = {'NumStopsKm': get_num_stops_per_km_score(stops_per_km),
+                   'SpeedVariationNum': get_acceleration_lower_threshold_score(percentage_acceleration_lower_threshold),
+                   'DrivingAggressiveness': get_acceleration_greater_threshold_score(
                        percentage_acceleration_greater_threshold)
                    }
     return total_score
