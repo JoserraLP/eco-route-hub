@@ -53,9 +53,9 @@ def process_route(route_coordinates: list, common_source: Coords, common_target:
     max_speeds = retrieve_max_speeds_threads(route_extended_coordinates)
     # Retrieve indices for segmented route
     # This method is commented as it removes too much points
-    # indices = segment_route(max_speeds, slopes)
+    indices = segment_route(max_speeds, slopes)
     # Define the indices as the number of points (e.g. max speeds length)
-    indices = range(len(max_speeds))
+    # indices = range(len(max_speeds))
 
     # Calculate sum of distances of the non-selected nodes
     sum_distances_segment = [sum(distances[i:j]) for i, j in zip(indices,
@@ -65,8 +65,9 @@ def process_route(route_coordinates: list, common_source: Coords, common_target:
     mean_slope_segment = [mean(slopes[i:j]) for i, j in zip(indices,
                                                             indices[1:])]
 
-    # return the segments, heights, maximum speeds, distances and slopes
+    # return the segments (also its representation), heights, maximum speeds, distances and slopes
     return {'segments': [route_extended_coordinates[i] for i in indices],
+            'segments_representation': [route_extended_coordinates[i] for i in range(len(max_speeds))],
             'heights': [heights[i] for i in indices],
             'max_speed': [max_speeds[i] for i in indices][:-1],
             # Last item of max speed removed as it is not used
