@@ -11,15 +11,15 @@ class User(db.Model):
     Password = db.Column(db.String(50), nullable=False)
     BirthDate = db.Column(db.DateTime)
     Gender = db.Column(db.String(20))
-    DrivingLicenseDate = db.Column(db.DateTime)
+    DrivingLicenseYear = db.Column(db.String(10))
 
-    def __init__(self, Name, Email, Password, BirthDate, Gender, DrivingLicenseDate):
+    def __init__(self, Name, Email, Password, BirthDate, Gender, DrivingLicenseYear):
         self.Name = Name
         self.Email = Email
         self.Password = Password
         self.BirthDate = BirthDate
         self.Gender = Gender
-        self.DrivingLicenseDate = DrivingLicenseDate
+        self.DrivingLicenseYear = DrivingLicenseYear
 
     def __repr__(self):
         return f'<User {self.UserID} {self.Name} {self.Email}>'
@@ -28,7 +28,7 @@ class User(db.Model):
 # Define the User schema
 class UserSchema(ma.Schema):
     class Meta:
-        fields = ('UserID', 'Name', 'Email', 'Password', 'BirthDate', 'Gender', 'DrivingLicenseDate')
+        fields = ('UserID', 'Name', 'Email', 'Password', 'BirthDate', 'Gender', 'DrivingLicenseYear')
 
 
 class Vehicle(db.Model):
@@ -64,7 +64,7 @@ class Vehicle(db.Model):
         return f'<Vehicle {self.VehicleID} {self.Name} {self.MotorType}>'
 
     def recalculate_a(self, AdditionalMass: int):
-        self.A = float(self.ResistanceFactor)*(float(self.UnladenVehMass) + AdditionalMass)*GRAVITY
+        self.A = float(self.ResistanceFactor) * (float(self.UnladenVehMass) + AdditionalMass) * GRAVITY
 
 
 # Define the Vehicle schema
@@ -107,42 +107,66 @@ class UserRoute(db.Model):
     UserID = db.Column(db.Integer, db.ForeignKey('user.UserID', ondelete='CASCADE'))
     UserVehicleID = db.Column(db.Integer, db.ForeignKey('user_vehicle.ID', ondelete='CASCADE'))
     AdditionalMass = db.Column(db.Integer, nullable=False)
-    RoutePolyline = db.Column(db.String(1000), nullable=False)
-    RouteType = db.Column(db.Enum('FASTEST', 'SHORTEST', 'ECO'), nullable=False)
-    EstimatedConsumption = db.Column(db.Numeric(6, 2), nullable=False)
-    EstimatedTimeSeconds = db.Column(db.Integer, nullable=False)
-    EstimatedDistanceMeters = db.Column(db.Integer, nullable=False)
-    RecordDate = db.Column(db.TIMESTAMP, nullable=False)
-    ActualConsumption = db.Column(db.Numeric(6, 2), nullable=False)
-    ActualTimeSeconds = db.Column(db.Integer, nullable=False)
-    ActualDistanceMeters = db.Column(db.Integer, nullable=False)
+    SourceCoords = db.Column(db.String(200), nullable=False)
+    DestinationCoords = db.Column(db.String(200), nullable=False)
+    RecordDate = db.Column(db.DateTime, nullable=False)
+    SelectedRoutePolyline = db.Column(db.Text, nullable=False)
+    SelectedRouteType = db.Column(db.Enum('FASTEST', 'SHORTEST', 'ECO'), nullable=False)
+    SelectedRouteConsumption = db.Column(db.Numeric(10, 3), nullable=False)
+    SelectedRouteTime = db.Column(db.Integer, nullable=False)
+    SelectedRouteDistance = db.Column(db.Integer, nullable=False)
+    PerformedRoutePolyline = db.Column(db.Text, nullable=False)
+    PerformedRouteConsumption = db.Column(db.Numeric(10, 3), nullable=False)
+    PerformedRouteTime = db.Column(db.Integer, nullable=False)
+    PerformedRouteDistance = db.Column(db.Integer, nullable=False)
+    PerformedRouteEstimatedConsumption = db.Column(db.Numeric(10, 3), nullable=False)
+    PerformedRouteEstimatedTime = db.Column(db.Integer, nullable=False)
+    PerformedRouteEstimatedDistance = db.Column(db.Integer, nullable=False)
+    NumStopsKm = db.Column(db.Integer, nullable=False)
+    SpeedVariationNum = db.Column(db.Integer, nullable=False)
+    DrivingAggressiveness = db.Column(db.Integer, nullable=False)
     user = db.relationship('User', backref='route')
 
     def __repr__(self):
-        return f'<UserRoute {self.ID} {self.UserID} {self.RouteType}>'
+        return f'<UserRoute {self.ID} {self.UserID} {self.SelectedRouteType}>'
 
-    def __init__(self, UserID, UserVehicleID, AdditionalMass, RoutePolyline, RouteType, EstimatedConsumption,
-                 EstimatedTimeSeconds, EstimatedDistanceMeters, RecordDate, ActualConsumption, ActualTimeSeconds,
-                 ActualDistanceMeters):
+    def __init__(self, UserID, UserVehicleID, AdditionalMass, SourceCoords, DestinationCoords, SelectedRoutePolyline,
+                 SelectedRouteType, SelectedRouteConsumption, SelectedRouteTime, SelectedRouteDistance,
+                 PerformedRoutePolyline, PerformedRouteConsumption, PerformedRouteTime,
+                 PerformedRouteDistance, PerformedRouteEstimatedConsumption, PerformedRouteEstimatedTime,
+                 PerformedRouteEstimatedDistance, NumStopsKm, SpeedVariationNum, DrivingAggressiveness,
+                 RecordDate=None):
         self.UserID = UserID
         self.UserVehicleID = UserVehicleID
         self.AdditionalMass = AdditionalMass
-        self.RoutePolyline = RoutePolyline
-        self.RouteType = RouteType
-        self.EstimatedConsumption = EstimatedConsumption
-        self.EstimatedTimeSeconds = EstimatedTimeSeconds
-        self.EstimatedDistanceMeters = EstimatedDistanceMeters
+        self.SourceCoords = SourceCoords
+        self.DestinationCoords = DestinationCoords
         self.RecordDate = RecordDate
-        self.ActualConsumption = ActualConsumption
-        self.ActualTimeSeconds = ActualTimeSeconds
-        self.ActualDistanceMeters = ActualDistanceMeters
+        self.SelectedRoutePolyline = SelectedRoutePolyline
+        self.SelectedRouteType = SelectedRouteType
+        self.SelectedRouteConsumption = SelectedRouteConsumption
+        self.SelectedRouteTime = SelectedRouteTime
+        self.SelectedRouteDistance = SelectedRouteDistance
+        self.PerformedRoutePolyline = PerformedRoutePolyline
+        self.PerformedRouteConsumption = PerformedRouteConsumption
+        self.PerformedRouteTime = PerformedRouteTime
+        self.PerformedRouteDistance = PerformedRouteDistance
+        self.PerformedRouteEstimatedConsumption = PerformedRouteEstimatedConsumption
+        self.PerformedRouteEstimatedTime = PerformedRouteEstimatedTime
+        self.PerformedRouteEstimatedDistance = PerformedRouteEstimatedDistance
+        self.NumStopsKm = NumStopsKm
+        self.SpeedVariationNum = SpeedVariationNum
+        self.DrivingAggressiveness = DrivingAggressiveness
 
 
 class UserRouteSchema(ma.Schema):
     class Meta:
-        fields = ('ID', 'UserID', 'UserVehicleID', 'AdditionalMass', 'RoutePolyline', 'RouteType',
-                  'EstimatedConsumption', 'EstimatedTimeSeconds', 'EstimatedDistanceMeters', 'RecordDate',
-                  'ActualConsumption', 'ActualTimeSeconds', 'ActualDistanceMeters')
+        fields = ('ID', 'UserID', 'UserVehicleID', 'AdditionalMass', 'SourceCoords', 'DestinationCoords', 'RecordDate',
+                  'SelectedRoutePolyline',
+                  'SelectedRouteType', 'SelectedRouteConsumption', 'SelectedRouteTime', 'SelectedRouteDistance',
+                  'PerformedRoutePolyline', 'PerformedRouteConsumption', 'PerformedRouteTime', 'PerformedRouteDistance',
+                  'PerformedRouteEstimatedConsumption', 'PerformedRouteEstimatedTime',
+                  'PerformedRouteEstimatedDistance', 'NumStopsKm', 'SpeedVariationNum', 'DrivingAggressiveness')
 
 
 class UserStats(db.Model):
@@ -153,34 +177,30 @@ class UserStats(db.Model):
     EcoDistance = db.Column(db.Numeric(10, 2), nullable=False)
     EcoRoutesNum = db.Column(db.Integer, nullable=False)
     DriveRating = db.Column(db.Numeric(3, 2), nullable=False)
-    CarbonFootprint = db.Column(db.Numeric(5, 2), nullable=False)
     user = db.relationship('User', backref='stats', uselist=False)
 
     def __repr__(self):
         return f'<UserStats {self.UserID} {self.ConsumptionSaving} {self.EcoTime}>'
 
-    def __init__(self, UserID, ConsumptionSaving, EcoTime, EcoDistance, EcoRoutesNum, DriveRating,
-                 CarbonFootprint):
+    def __init__(self, UserID, ConsumptionSaving, EcoTime, EcoDistance, EcoRoutesNum, DriveRating):
         self.UserID = UserID
         self.ConsumptionSaving = ConsumptionSaving
         self.EcoTime = EcoTime
         self.EcoDistance = EcoDistance
         self.EcoRoutesNum = EcoRoutesNum
         self.DriveRating = DriveRating
-        self.CarbonFootprint = CarbonFootprint
 
 
 class UserStatsSchema(ma.Schema):
     class Meta:
-        fields = ('UserID', 'ConsumptionSaving', 'EcoTime', 'EcoDistance', 'EcoRoutesNum', 'DriveRating',
-                  'CarbonFootprint')
+        fields = ('UserID', 'ConsumptionSaving', 'EcoTime', 'EcoDistance', 'EcoRoutesNum', 'DriveRating')
 
 
 class AppReview(db.Model):
     __tableName__ = 'app_review'
     AppReviewID = db.Column(db.Integer, primary_key=True, autoincrement=True)
     UserID = db.Column(db.Integer, db.ForeignKey('user.UserID', ondelete='CASCADE'))
-    GlobalComments = db.Column(db.String(200), nullable=False)
+    GlobalComments = db.Column(db.String(2000), nullable=False)
     GlobalScore = db.Column(db.Numeric(3, 2), nullable=False)
     user = db.relationship('User', backref='reviews')
     features = db.relationship('FeatureReview', backref='app_review')
@@ -207,7 +227,7 @@ class FeatureReview(db.Model):
         db.Enum('ACCESABILITY', 'RESPONSETIME', 'CONFIGURABILITY', 'USABILITY', 'TRUSTABILITY', 'ROBUSTNESS',
                 'UTILITY'), nullable=False)
     Score = db.Column(db.Numeric(3, 2), nullable=False)
-    Comments = db.Column(db.String(200), nullable=False)
+    Comments = db.Column(db.String(2000), nullable=False)
 
     def __repr__(self):
         return f'<FeatureReview {self.ID} {self.AppReviewID} {self.Topic} {self.Score}>'

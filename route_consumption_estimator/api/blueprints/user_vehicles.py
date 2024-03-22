@@ -10,52 +10,29 @@ user_vehicle_schema = UserVehicleSchema()
 user_vehicles_schema = UserVehicleSchema(many=True)
 
 
-# Create A route to get all vehicles
+# Create an endpoint to get all, specific user or specific user_vehicles
 @user_vehicles_bp.route('/user_vehicles', methods=['GET'])
 @api_required
-def get_user_vehicles():
-    # Query the database for all vehicles
-    user_vehicles = UserVehicle.query.all()
+def get_users_vehicles():
+    # Retrieve query params (user, user_vehicle_id)
+    user = request.args.get('user', '')
+    user_vehicle_id = request.args.get('user_vehicle_id', '')
+    if user:
+        # Query the database for the user_vehicle with the given user ID
+        user_vehicles = UserVehicle.query.filter_by(UserID=user)
+    elif user_vehicle_id:
+        # Query the database for the user_vehicle with the given ID (included in a list to fit the output schema)
+        user_vehicles = [UserVehicle.query.get(id)]
+    else:
+        # Query the database for all vehicles
+        user_vehicles = UserVehicle.query.all()
     # Serialize the vehicles as JSON
-    result = user_vehicle_schema.dump(user_vehicles)
+    result = user_vehicles_schema.dump(user_vehicles)
     # Return the JSON response
     return jsonify(result)
 
 
-# Create A route to get all vehicle by Name
-@user_vehicles_bp.route('/user_vehicles/user/<user_id>', methods=['GET'])
-@api_required
-def get_vehicles_user(user_id):
-    # Query the database for the user_vehicle with the given user ID
-    user_vehicle = UserVehicle.query.filter_by(UserID=user_id)
-    # Check if the vehicle exists
-    if user_vehicle is None:
-        # Return empty
-        return jsonify({})
-    # Serialize the vehicle as JSON
-    result = user_vehicles_schema.dump(user_vehicle)
-    # Return the JSON response
-    return jsonify(result)
-
-
-# Create A route to get A vehicle by Name
-@user_vehicles_bp.route('/user_vehicles/<id>', methods=['GET'])
-@api_required
-def get_vehicle_user(id):
-    # Query the database for the user_vehicle with the given user ID
-    user_vehicle = UserVehicle.query.get(id)
-    # Check if the vehicle exists
-    if user_vehicle is None:
-        # Return empty
-        return jsonify({})
-    # Serialize the vehicle as JSON
-    result = user_vehicle_schema.dump(user_vehicle)
-    # Return the JSON response
-    return jsonify(result)
-
-
-# Create A route to get all user vehicles
-# Create A route to create A new user vehicle
+# Create an endpoint to create a new user_vehicle
 @user_vehicles_bp.route('/user_vehicles', methods=['POST'])
 @api_required
 def create_user_vehicle():
@@ -66,8 +43,8 @@ def create_user_vehicle():
         # Return A 400 bad request error
         return jsonify({'message': 'Missing data'}), 400
     # Create A new user vehicle object
-    user_vehicle = UserVehicle(data['UserID'], data['VehicleID'], data.get('Age'), data.get('KmUsed'),
-                               data.get('IsFav'))
+    user_vehicle = UserVehicle(UserID=data['UserID'], VehicleID=data['VehicleID'], Age=data.get('Age'),
+                               KmUsed=data.get('KmUsed'), IsFav=data.get('IsFav'))
     # Add the user vehicle to the database
     db.session.add(user_vehicle)
     db.session.commit()
@@ -77,18 +54,24 @@ def create_user_vehicle():
     return jsonify(result), 201
 
 
-# Create A route to update A user vehicle by ID
-@user_vehicles_bp.route('/user_vehicles/<id>', methods=['PUT'])
+# Create and endpoint to update a user vehicle by user ID
+@user_vehicles_bp.route('/user_vehicles', methods=['PUT'])
 @api_required
-def update_user_vehicle(id):
-    # Query the database for the user vehicle with the given ID
-    user_vehicle = UserVehicle.query.get(id)
-    # Check if the user vehicle exists
-    if user_vehicle is None:
-        # Return empty
-        return jsonify({})
+def update_user_vehicle():
     # Get the JSON data from the request
     data = request.get_json()
+    user_vehicle_id = data.get('ID')
+    # Check if the parameter not set
+    if not user_vehicle_id:
+        # Return A 404 not found error
+        return jsonify({'message': 'ID is required'}), 404
+    # Query the database for the user vehicle with the given ID
+    user_vehicle = UserVehicle.query.get(user_vehicle_id)
+    # Check if the user vehicle exists
+    if user_vehicle is None:
+        # Return A 404 not found error
+        return jsonify({'message': 'UserVehicle not found'}), 404
+
     # Update the user vehicle attributes
     user_vehicle.UserID = data.get('UserID', user_vehicle.UserID)
     user_vehicle.VehicleID = data.get('VehicleID', user_vehicle.VehicleID)
@@ -103,16 +86,22 @@ def update_user_vehicle(id):
     return jsonify(result)
 
 
-# Create A route to delete A user vehicle by ID
-@user_vehicles_bp.route('/user_vehicles/<id>', methods=['DELETE'])
+# Create an endpoint to delete a user vehicle by user ID
+@user_vehicles_bp.route('/user_vehicles', methods=['DELETE'])
 @api_required
-def delete_user_vehicle(id):
+def delete_user_vehicle():
+    user_vehicle_id = request.args.get('user_vehicle_id', '')
+    # Check if the parameter not set
+    if not user_vehicle_id:
+        # Return A 404 not found error
+        return jsonify({'message': 'user_vehicle_id is required'}), 404
+
     # Query the database for the user vehicle with the given ID
-    user_vehicle = UserVehicle.query.get(id)
+    user_vehicle = UserVehicle.query.get(user_vehicle_id)
     # Check if the user vehicle exists
     if user_vehicle is None:
         # Return A 404 not found error
-        return jsonify({'message': 'User vehicle not found'}), 404
+        return jsonify({'message': 'UserVehicle not found'}), 404
     # Delete the user vehicle from the database
     db.session.delete(user_vehicle)
     db.session.commit()

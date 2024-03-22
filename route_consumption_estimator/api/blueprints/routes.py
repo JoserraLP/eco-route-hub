@@ -1,5 +1,4 @@
-import time
-
+import polyline
 from flask import Blueprint, request
 
 from route_consumption_estimator.api.constants import DEFAULT_USER_ROUTE_ADDITIONAL_MASS
@@ -7,6 +6,7 @@ from route_consumption_estimator.api.models import Vehicle
 from route_consumption_estimator.api.security import api_required
 from route_consumption_estimator.api.utils import request_routes, process_route_information, \
     estimate_consumption_routes, calculate_real_consumption, evaluate_consumption
+from route_consumption_estimator.routers.utils import process_route
 from route_consumption_estimator.vehicle.veh_model import VehicleModel
 
 # routes blueprint
@@ -15,13 +15,11 @@ routes_bp = Blueprint('routes', __name__)
 
 @routes_bp.route('/routes', methods=['GET'])
 @api_required
-def calculate_route_estimation():
-    start_time = time.time()
+def get_all_routes():
     # Coords are LAT,LON
     source = request.args.get('source')
     destination = request.args.get('destination')
     inner_coords = request.args.get('inner_coords', '')
-    user_id = request.args.get('user_id', '')
     vehicle_id = request.args.get('vehicle_id', '')
     additional_mass = request.args.get('additional_mass', DEFAULT_USER_ROUTE_ADDITIONAL_MASS)
 
@@ -57,9 +55,9 @@ def calculate_route_estimation():
         # print(routes_estimations)
 
         # Filter the route: Eco, Shortest and Fastest
-        consumption_index = min(enumerate(routes_estimations), key=lambda x: x[1]['energy_consumption'])[0]
-        distance_index = min(enumerate(routes_estimations), key=lambda x: x[1]['distance'])[0]
-        time_index = min(enumerate(routes_estimations), key=lambda x: x[1]['time'])[0]
+        consumption_index = min(enumerate(routes_estimations), key=lambda x: x[1]['EnergyConsumption'])[0]
+        distance_index = min(enumerate(routes_estimations), key=lambda x: x[1]['Distance'])[0]
+        time_index = min(enumerate(routes_estimations), key=lambda x: x[1]['Time'])[0]
 
         # Define final routes
         final_routes = {
@@ -77,23 +75,23 @@ def calculate_route_estimation():
     return final_routes
 
 
-@routes_bp.route('/consumption', methods=['POST'])
+@routes_bp.route('/routes/performed_route', methods=['POST'])
 @api_required
-def calculate_real_route_consumption():
+def calculate_performed_route_metrics():
     data = request.get_json(force=True)
 
     # Get Vehicle
-    vehicle_id = data['vehicle_id']
+    vehicle_id = data['VehicleID']
 
     # Get additional mass
-    additional_mass = data['additional_mass'] if 'additional_mass' in data else None
+    additional_mass = data['AdditionalMass'] if 'AdditionalMass' in data else None
 
     # Also get the speeds, heights and times
-    speeds = data['speeds']
+    speeds = data['Speeds']
     # This is for km/h speeds, in the end we are going to use m/s but examples are on km/h
     # speeds = [item/3.6 for item in data['speeds']]
-    heights = data['heights']
-    times = data['times']  # Represented as difference of time between measurements
+    heights = data['Heights']
+    times = data['Times']  # Represented as difference of time between measurements
 
     # Get vehicle to simulate
     vehicle = Vehicle.query.get(vehicle_id)
@@ -110,9 +108,37 @@ def calculate_real_route_consumption():
                                      B=float(vehicle.B),
                                      C=float(vehicle.C),
                                      motor_type=str(Vehicle.MotorType))
+    # Calculate performed route real consumption based on input data
+    performed_route_metrics, accelerations = calculate_real_consumption(speeds=speeds, heights=heights, times=times,
+                                                                        vehicle=simulator_vehicle)
 
-    consumption, accelerations = calculate_real_consumption(speeds=speeds, heights=heights, times=times, vehicle=simulator_vehicle)
+    # Rename keys
+    performed_route_metrics = {'PerformedRouteConsumption': performed_route_metrics['EnergyConsumption'],
+                               'PerformedRouteDistance': performed_route_metrics['Distance'],
+                               'PerformedRouteTime': performed_route_metrics['Time']}
 
-    evaluation = evaluate_consumption(speeds=speeds, accelerations=accelerations, total_length=consumption['distance'])
+    evaluation = evaluate_consumption(speeds=speeds, accelerations=accelerations,
+                                      total_length=performed_route_metrics['Distance'])
 
-    return {**consumption, **evaluation}
+    # Performed route estimation
+    # Get performed route polyline
+    performed_route_polyline = data['RoutePolyline']
+
+    performed_route_coords = polyline.decode(performed_route_polyline, 6)
+
+    performed_route_info = [process_route(route_coordinates=performed_route_coords,
+                                          common_source=performed_route_coords[0],
+                                          common_target=performed_route_coords[-1])]
+
+    # Calculate performed route estimated consumption based on maximum speeds
+    performed_route_estimated_metrics = estimate_consumption_routes(routes_information=performed_route_info,
+                                                                    routes=performed_route_info,
+                                                                    vehicle=vehicle)
+    # Rename keys
+    performed_route_estimated_metrics = {'PerformedRouteEstimatedConsumption':
+                                             performed_route_estimated_metrics['EnergyConsumption'],
+                                         'PerformedRouteEstimatedDistance':
+                                             performed_route_estimated_metrics['Distance'],
+                                         'PerformedRouteEstimatedTime': performed_route_estimated_metrics['Time']}
+
+    return {**performed_route_metrics, **evaluation, **performed_route_estimated_metrics}

@@ -12,34 +12,29 @@ vehicle_schema = VehicleSchema()
 vehicles_schema = VehicleSchema(many=True)
 
 
-# Create A route to get all vehicles
+# Create an endpoint to get all or filtered by name vehicles
 @vehicles_bp.route('/vehicles', methods=['GET'])
 @api_required
 def get_vehicles():
-    # Query the database for all vehicles
-    vehicles = Vehicle.query.all()
+    # Retrieve query params (q, id)
+    query = request.args.get('q', '')
+    vehicle_id = request.args.get('vehicle_id', '')
+    if query:
+        # Query the database for the vehicles that match the input query on name
+        vehicles = Vehicle.query.filter(Vehicle.Name.like('%' + query + '%'))
+    elif vehicle_id:
+        # Query the database for the vehicle with the given ID (included in a list to fit the output schema)
+        vehicles = [Vehicle.query.get(vehicle_id)]
+    else:
+        # Query the database for all vehicles
+        vehicles = Vehicle.query.all()
     # Serialize the vehicles as JSON
     result = vehicles_schema.dump(vehicles)
     # Return the JSON response
     return jsonify(result)
 
 
-# Create A route to get A vehicle by ID
-@vehicles_bp.route('/vehicles/<vehicle_id>', methods=['GET'])
-@api_required
-def get_vehicle_id(vehicle_id):
-    # Query the database for the vehicle with the given ID
-    vehicle = Vehicle.query.get(vehicle_id)
-    # Check if the vehicle exists
-    if vehicle is None:
-        return jsonify({})
-    # Serialize the vehicle as JSON
-    result = vehicle_schema.dump(vehicle)
-    # Return the JSON response
-    return jsonify(result)
-
-
-# Create A route to create A new vehicle
+# Create an endpoint to create a vehicle
 @vehicles_bp.route('/vehicles', methods=['POST'])
 @api_required
 def create_vehicle():
@@ -59,7 +54,7 @@ def create_vehicle():
     # Calculate C
     # FrontalArea = 0.85 * Width (mm) * Height (mm)
     # Parse Width and Height to meters
-    FrontalArea = 0.85 * data.get('Width', 0)/1000 * data.get('Height', 0)/1000
+    FrontalArea = 0.85 * data.get('Width', 0) / 1000 * data.get('Height', 0) / 1000
     # C = 0.5 * 1.225 * FrontalArea * Cx * (1 / 3.6)^2
 
     C = data.get('C',
@@ -79,22 +74,27 @@ def create_vehicle():
                       PMaxKw=data.get('PMaxKw'),
                       LitersConversion=data.get('LitersConversion', LitersConversion),
                       ResistanceFactor=data.get('ResistanceFactor', DEFAULT_VEHICLE_RF),
-                      A=A, B=B, C=C, Url=data.get('Url'), ImageUrl=data.get('ImageUrl'))
+                      A=A, B=B, C=C, Url=data.get('Url', ''), ImageUrl=data.get('ImageUrl', ''))
     # Add the vehicle to the database
     db.session.add(vehicle)
     db.session.commit()
     # Serialize the vehicle as JSON
     result = vehicle_schema.dump(vehicle)
-    # Return the JSON response with A 201 created status
+    # Return the JSON response with a 201 created status
     return jsonify(result), 201
 
 
 # Create A route to delete A vehicle by ID
-@vehicles_bp.route('/vehicles/<id>', methods=['DELETE'])
+@vehicles_bp.route('/vehicles', methods=['DELETE'])
 @api_required
-def delete_vehicle(id):
+def delete_vehicle():
+    vehicle_id = request.args.get('vehicle_id', '')
+    # Check if the parameter not set
+    if not vehicle_id:
+        # Return A 404 not found error
+        return jsonify({'message': 'vehicle_id is required'}), 404
     # Query the database for the vehicle with the given ID
-    vehicle = Vehicle.query.get(id)
+    vehicle = Vehicle.query.get(vehicle_id)
     # Check if the vehicle exists
     if vehicle is None:
         # Return A 404 not found error

@@ -10,52 +10,29 @@ app_review_schema = AppReviewSchema()
 app_reviews_schema = AppReviewSchema(many=True)
 
 
-# Create A route to get all vehicles
+# Create an endpoint to get all or filtered app_reviews
 @app_review_bp.route('/app_review', methods=['GET'])
 @api_required
 def get_app_reviews():
-    # Query the database for all vehicles
-    app_review = AppReview.query.all()
-    # Serialize the vehicles as JSON
-    result = app_review_schema.dump(app_review)
+    # Retrieve query params (user, app_review_id)
+    user = request.args.get('user', '')
+    app_review_id = request.args.get('app_review_id', '')
+    if user:
+        # Query the database for the user application reviews
+        app_reviews = AppReview.query.filter_by(UserID=user)
+    elif app_review_id:
+        # Query the database for a specific application review (included in a list to fit the output schema)
+        app_reviews = [AppReview.query.get(app_review_id)]
+    else:
+        # Query the database for all app reviews
+        app_reviews = AppReview.query.all()
+
+    result = app_reviews_schema.dump(app_reviews)
     # Return the JSON response
     return jsonify(result)
 
 
-# Create A route to get all review by user ID
-@app_review_bp.route('/app_review/user/<user_id>', methods=['GET'])
-@api_required
-def get_user_app_reviews(user_id):
-    # Query the database for the app_review with the given user ID
-    app_review = AppReview.query.filter_by(UserID=user_id)
-    # Check if the vehicle exists
-    if app_review is None:
-        # Return empty
-        return jsonify({})
-    # Serialize the vehicle as JSON
-    result = app_reviews_schema.dump(app_review)
-    # Return the JSON response
-    return jsonify(result)
-
-
-# Create A route to get an app review by ID
-@app_review_bp.route('/app_review/<id>', methods=['GET'])
-@api_required
-def get_app_review(id):
-    # Query the database for the app_review with the given user ID
-    app_review = AppReview.query.get(id)
-    # Check if the vehicle exists
-    if app_review is None:
-        # Return empty
-        return jsonify({})
-    # Serialize the vehicle as JSON
-    result = app_review_schema.dump(app_review)
-    # Return the JSON response
-    return jsonify(result)
-
-
-# Create A route to get all user vehicles
-# Create A route to create A new app review
+# Create an endpoint to create a new app review
 @app_review_bp.route('/app_review', methods=['POST'])
 @api_required
 def create_app_review():
@@ -66,7 +43,8 @@ def create_app_review():
         # Return A 400 bad request error
         return jsonify({'message': 'Missing data'}), 400
     # Create A new app review object
-    app_review = AppReview(data['UserID'], data.get('GlobalComments'), data.get('GlobalScore'))
+    app_review = AppReview(UserID=data['UserID'], GlobalComments=data.get('GlobalComments'),
+                           GlobalScore=data.get('GlobalScore'))
     # Add the app review to the database
     db.session.add(app_review)
     db.session.commit()
@@ -76,36 +54,20 @@ def create_app_review():
     return jsonify(result), 201
 
 
-# Create A route to update an app review by ID
-@app_review_bp.route('/app_review/<id>', methods=['PUT'])
+# Create an endpoint to delete an app review by ID
+@app_review_bp.route('/app_review', methods=['DELETE'])
 @api_required
-def update_app_review(id):
-    # Query the database for the app review with the given ID
-    app_review = AppReview.query.get(id)
-    # Check if the app review exists
-    if app_review is None:
+def delete_app_review():
+    # Retrieve query params (user, app_review_id)
+    app_review_id = request.args.get('app_review_id', '')
+    # Check if the parameter not set
+    if not app_review_id:
         # Return A 404 not found error
-        return jsonify({'message': 'App review not found'}), 404
-    # Get the JSON data from the request
-    data = request.get_json()
-    # Update the app review attributes
-    app_review.UserID = data.get('UserID', app_review.UserID)
-    app_review.GlobalComments = data.get('GlobalComments', app_review.GlobalComments)
-    app_review.GlobalScore = data.get('GlobalScore', app_review.GlobalScore)
-    # Commit the changes to the database
-    db.session.commit()
-    # Serialize the app review as JSON
-    result = app_review_schema.dump(app_review)
-    # Return the JSON response
-    return jsonify(result)
+        return jsonify({'message': 'app_review_id is required'}), 404
 
-
-# Create A route to delete an app review by ID
-@app_review_bp.route('/app_review/<id>', methods=['DELETE'])
-@api_required
-def delete_app_review(id):
     # Query the database for the app review with the given ID
-    app_review = AppReview.query.get(id)
+    app_review = AppReview.query.get(app_review_id)
+
     # Check if the app review exists
     if app_review is None:
         # Return A 404 not found error

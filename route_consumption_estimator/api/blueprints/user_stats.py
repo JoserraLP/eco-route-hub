@@ -1,3 +1,4 @@
+import numpy as np
 from flask import Blueprint, jsonify, request
 from route_consumption_estimator.api.models import *
 from route_consumption_estimator.api.security import api_required
@@ -9,47 +10,39 @@ user_stat_schema = UserStatsSchema()
 user_stats_schema = UserStatsSchema(many=True)
 
 
-# Create A route to get all user stats
+# Create an endpoint to get all user stats
 @user_stats_bp.route('/user_stats', methods=['GET'])
 @api_required
 def get_user_stats():
-    # Query the database for all user stats
-    user_stats = UserStats.query.all()
+    # Retrieve query params (user)
+    user = request.args.get('user', '')
+    if user:
+        # Query the database for the user stats of a given user (included in a list to fit the output schema)
+        user_stats = [UserStats.query.get(user)]
+    else:
+        # Query the database for all user stats
+        user_stats = UserStats.query.all()
     # Serialize the user stats as JSON
     result = user_stats_schema.dump(user_stats)
     # Return the JSON response
     return jsonify(result)
 
 
-# Create A route to get A user stat by user ID
-@user_stats_bp.route('/user_stats/<user_id>', methods=['GET'])
-@api_required
-def get_user_stat(user_id):
-    # Query the database for the user stat with the given user ID
-    user_stat = UserStats.query.get(user_id)
-    # Check if the user stat exists
-    if user_stat is None:
-        # Return empty
-        return jsonify({})
-    # Serialize the user stat as JSON
-    result = user_stats_schema.dump(user_stat)
-    # Return the JSON response
-    return jsonify(result)
-
-
-# Create A route to create A new user stat
+# Create an endpoint to create a new user stats
 @user_stats_bp.route('/user_stats', methods=['POST'])
 @api_required
-def create_user_stat():
+def create_user_stats():
     # Get the JSON data from the request
     data = request.get_json()
     # Validate the data
-    if 'UserID' not in data or 'ConsumptionSaving' not in data or 'EcoTime' not in data or 'EcoDistance' not in data or 'EcoRoutesNum' not in data or 'DriveRating' not in data or 'CarbonFootprint' not in data:
+    if 'UserID' not in data or 'ConsumptionSaving' not in data or 'EcoTime' not in data or 'EcoDistance' not in data \
+            or 'EcoRoutesNum' not in data or 'DriveRating' not in data:
         # Return A 400 bad request error
         return jsonify({'message': 'Missing data'}), 400
     # Create A new user stat object
-    user_stat = UserStats(data['UserID'], data['ConsumptionSaving'], data['EcoTime'], data['EcoDistance'],
-                          data['EcoRoutesNum'], data['DriveRating'], data['CarbonFootprint'])
+    user_stat = UserStats(UserID=data['UserID'], ConsumptionSaving=data['ConsumptionSaving'], EcoTime=data['EcoTime'],
+                          EcoDistance=data['EcoDistance'], EcoRoutesNum=data['EcoRoutesNum'],
+                          DriveRating=data['DriveRating'])
     # Add the user stat to the database
     db.session.add(user_stat)
     db.session.commit()
@@ -59,25 +52,31 @@ def create_user_stat():
     return jsonify(result), 201
 
 
-# Create A route to update A user stat by user ID
-@user_stats_bp.route('/user_stats/<user_id>', methods=['PUT'])
+# Create and endpoint to update the user stats by user ID
+@user_stats_bp.route('/user_stats', methods=['PUT'])
 @api_required
-def update_user_stat(user_id):
+def update_user_stats():
+    # Get the JSON data from the request
+    data = request.get_json()
+    user_id = data.get('UserID')
+    # Check if the parameter not set
+    if not user_id:
+        # Return A 404 not found error
+        return jsonify({'message': 'UserID is required'}), 404
+
     # Query the database for the user stat with the given user ID
     user_stat = UserStats.query.get(user_id)
     # Check if the user stat exists
     if user_stat is None:
         # Return A 404 not found error
         return jsonify({'message': 'User stat not found'}), 404
-    # Get the JSON data from the request
-    data = request.get_json()
-    # Update the user stat attributes
+
+    # Update the user stats attributes
     user_stat.ConsumptionSaving = data.get('ConsumptionSaving', user_stat.ConsumptionSaving)
     user_stat.EcoTime = data.get('EcoTime', user_stat.EcoTime)
     user_stat.EcoDistance = data.get('EcoDistance', user_stat.EcoDistance)
     user_stat.EcoRoutesNum = data.get('EcoRoutesNum', user_stat.EcoRoutesNum)
     user_stat.DriveRating = data.get('DriveRating', user_stat.DriveRating)
-    user_stat.CarbonFootprint = data.get('CarbonFootprint', user_stat.CarbonFootprint)
     # Commit the changes to the database
     db.session.commit()
     # Serialize the user stat as JSON
@@ -86,18 +85,81 @@ def update_user_stat(user_id):
     return jsonify(result)
 
 
-# Create A route to delete A user stat by user ID
-@user_stats_bp.route('/user_stats/<user_id>', methods=['DELETE'])
+# Create an endpoint to delete a user stat by user ID
+@user_stats_bp.route('/user_stats', methods=['DELETE'])
 @api_required
-def delete_user_stat(user_id):
+def delete_user_stats():
+    # Retrieve query params (user)
+    user = request.args.get('user', '')
+    # Check if the parameter not set
+    if not user:
+        # Return A 404 not found error
+        return jsonify({'message': 'user is required'}), 404
+
     # Query the database for the user stat with the given user ID
-    user_stat = UserStats.query.get(user_id)
+    user_stat = UserStats.query.get(user)
     # Check if the user stat exists
     if user_stat is None:
         # Return A 404 not found error
-        return jsonify({'message': 'User stat not found'}), 404
+        return jsonify({'message': 'User stats not found'}), 404
     # Delete the user stat from the database
     db.session.delete(user_stat)
     db.session.commit()
     # Return A 204 no content status
     return '', 204
+
+
+def recalculate_user_stats(user_id):
+    """
+    Method to recalculate the user stats based on all the user_routes
+
+    :param user_id: user identifier
+    :return:
+    """
+
+    # Query all the user routes
+    user_routes = UserRoute.query.filter_by(UserID=user_id)
+    # Define variable to store the values
+    consumption_saving = 0.0
+    total_consumption = 0.0
+    eco_time = 0.0
+    total_time = 0.0
+    eco_distance = 0.0
+    total_distance = 0.0
+    eco_routes_num = 0
+    drive_rating = []
+
+    for user_route in user_routes:
+        # Difference of performed routes consumptions
+        total_consumption += float(user_route.PerformedRouteEstimatedConsumption) - \
+                             float(user_route.PerformedRouteConsumption)
+        total_time += int(user_route.PerformedRouteEstimatedTime)
+        total_distance += int(user_route.PerformedRouteEstimatedDistance)
+        # Only count the selected route type if ECO
+        if user_route.SelectedRouteType == 'ECO':
+            # Difference of performed routes consumptions
+            consumption_saving += float(user_route.PerformedRouteEstimatedConsumption) - \
+                                  float(user_route.PerformedRouteConsumption)
+
+            eco_time += int(user_route.PerformedRouteEstimatedTime)
+            eco_distance += int(user_route.PerformedRouteEstimatedDistance)
+            eco_routes_num += 1
+
+        # average of all the three metrics
+        drive_rating.append(np.mean([int(user_route.NumStopsKm), int(user_route.SpeedVariationNum),
+                                     int(user_route.DrivingAggressiveness)]))
+
+    # Query the database for the user stat with the given user ID
+    user_stats = UserStats.query.get(user_id)
+
+    total_consumption = 1 if total_consumption == 0 else consumption_saving
+
+    # Update the user stats attributes
+    user_stats.ConsumptionSaving = consumption_saving / total_consumption
+    user_stats.EcoTime = eco_time / total_time
+    user_stats.EcoDistance = eco_distance / total_distance
+    user_stats.EcoRoutesNum = eco_routes_num / len(drive_rating)
+    user_stats.DriveRating = np.mean(drive_rating)
+
+    # Commit the changes to the database
+    db.session.commit()

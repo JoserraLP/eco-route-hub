@@ -10,52 +10,29 @@ feature_review_schema = FeatureReviewSchema()
 feature_reviews_schema = FeatureReviewSchema(many=True)
 
 
-# Create A route to get all vehicles
+# Create an endpoint to get all or filtered feature_reviews
 @feature_review_bp.route('/feature_review', methods=['GET'])
 @api_required
 def get_feature_reviews():
-    # Query the database for all vehicles
-    feature_review = FeatureReview.query.all()
+    # Retrieve query params (app_review_id, feature_review_id)
+    app_review_id = request.args.get('app_review_id', '')
+    feature_review_id = request.args.get('feature_review_id', '')
+    if app_review_id:
+        feature_reviews = FeatureReview.query.filter_by(AppReviewID=app_review_id)
+    elif feature_review_id:
+        # Query the database for the feature_review with the given user ID
+        feature_reviews = [FeatureReview.query.get(feature_review_id)]
+    else:
+        # Query the database for all feature reviews
+        feature_reviews = FeatureReview.query.all()
+
     # Serialize the vehicles as JSON
-    result = feature_review_schema.dump(feature_review)
+    result = feature_reviews_schema.dump(feature_reviews)
     # Return the JSON response
     return jsonify(result)
 
 
-# Create A route to get all review by app review ID
-@feature_review_bp.route('/feature_review/app_review_id/<app_review_id>', methods=['GET'])
-@api_required
-def get_app_feature_reviews(app_review_id):
-    # Query the database for the feature_review with the given app review ID
-    feature_review = FeatureReview.query.filter_by(AppReviewID=app_review_id)
-    # Check if the vehicle exists
-    if feature_review is None:
-        # Return empty
-        return jsonify({})
-    # Serialize the vehicle as JSON
-    result = feature_reviews_schema.dump(feature_review)
-    # Return the JSON response
-    return jsonify(result)
-
-
-# Create A route to get an app review by ID
-@feature_review_bp.route('/feature_review/<id>', methods=['GET'])
-@api_required
-def get_feature_review(id):
-    # Query the database for the feature_review with the given user ID
-    feature_review = FeatureReview.query.get(id)
-    # Check if the vehicle exists
-    if feature_review is None:
-        # Return empty
-        return jsonify({})
-    # Serialize the vehicle as JSON
-    result = feature_review_schema.dump(feature_review)
-    # Return the JSON response
-    return jsonify(result)
-
-
-# Create A route to get all user vehicles
-# Create A route to create A new app review
+# Create an endpoint to create a new feature review
 @feature_review_bp.route('/feature_review', methods=['POST'])
 @api_required
 def create_feature_review():
@@ -66,8 +43,8 @@ def create_feature_review():
         # Return A 400 bad request error
         return jsonify({'message': 'Missing data'}), 400
     # Create A new app review object
-    feature_review = FeatureReview(data['AppReviewID'], data.get('Topic'), data.get('Score'),
-                                   data.get('Comments'))
+    feature_review = FeatureReview(AppReviewID=data['AppReviewID'], Topic=data.get('Topic'), Score=data.get('Score'),
+                                   Comments=data.get('Comments'))
     # Add the app review to the database
     db.session.add(feature_review)
     db.session.commit()
@@ -77,38 +54,19 @@ def create_feature_review():
     return jsonify(result), 201
 
 
-# Create A route to update an app review by ID
-@feature_review_bp.route('/feature_review/<id>', methods=['PUT'])
+# Create an endpoint to delete a feature review by ID
+@feature_review_bp.route('/feature_review', methods=['DELETE'])
 @api_required
-def update_feature_review(id):
-    # Query the database for the app review with the given ID
-    feature_review = FeatureReview.query.get(id)
-    # Check if the app review exists
-    if feature_review is None:
+def delete_feature_review():
+    # Retrieve query params (user, app_review_id)
+    feature_review_id = request.args.get('feature_review_id', '')
+    # Check if the parameter not set
+    if not feature_review_id:
         # Return A 404 not found error
-        return jsonify({'message': 'Feature review not found'}), 404
-    # Get the JSON data from the request
-    data = request.get_json()
-    # Update the app review attributes
-    feature_review.AppReviewID = data.get('AppReviewID', feature_review.AppReviewID)
-    feature_review.Topic = data.get('Topic', feature_review.Topic)
-    feature_review.Score = data.get('Score', feature_review.Score)
-    feature_review.Comments = data.get('Comments', feature_review.Comments)
+        return jsonify({'message': 'feature_review_id is required'}), 404
 
-    # Commit the changes to the database
-    db.session.commit()
-    # Serialize the app review as JSON
-    result = feature_review_schema.dump(feature_review)
-    # Return the JSON response
-    return jsonify(result)
-
-
-# Create A route to delete an app review by ID
-@feature_review_bp.route('/feature_review/<id>', methods=['DELETE'])
-@api_required
-def delete_feature_review(id):
-    # Query the database for the app review with the given ID
-    feature_review = FeatureReview.query.get(id)
+    # Query the database for the feature review with the given ID
+    feature_review = FeatureReview.query.get(feature_review_id)
     # Check if the app review exists
     if feature_review is None:
         # Return A 404 not found error
