@@ -1,0 +1,1199 @@
+openapi: 3.0.3
+info:
+  title: Swagger Petstore - OpenAPI 3.0
+  description: Eco-Traffic APP API
+  termsOfService: http://swagger.io/terms/
+  contact:
+    email: joserralp@unex.es
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  version: 1.0.11
+externalDocs:
+  description: Find out more about the API
+  url: https://github.com/JoserraLP/route-consumption-estimator
+servers:
+  - url: http://127.0.0.1:5001/
+tags:
+  - name: app_review
+    description: Everything about the application reviews
+  - name: feature_review
+    description: Everything about the feature reviews
+  - name: routes
+    description: Everything about the routing process
+  - name: users
+    description: Everything about the users
+  - name: user_stats
+    description: Everything about the user statistics
+  - name: user_routes
+    description: Everything about the routes performed by the user
+  - name: vehicles
+    description: Everything about the vehicles
+paths:
+  /app_review:
+    get:
+      tags:
+        - app_review
+      summary: Get all app reviews
+      description: Get all application reviews, or specific by an user or id
+      operationId: get_app_reviews
+      parameters:
+        - name: user
+          in: query
+          required: false
+          description: user identifier
+          schema:
+            type : integer
+            format: int64
+        - name: app_review_id
+          in: query
+          required: false
+          description: app review identifier
+          schema:
+            type : integer
+            format: int64
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AppReview'          
+        '400':
+          description: Invalid status value
+      security:
+        - api_key:
+            - write:app_review
+            - read:app_review
+    post:
+      tags:
+        - app_review
+      summary: Add a new app review to the system
+      description: Add a new app review to the system
+      operationId: create_app_review
+      requestBody:
+        description: Create a new app review
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AppReview'
+        required: true
+      responses:
+        '201':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppReview'          
+        '400':
+          description: Invalid input
+        '422':
+          description: Validation exception
+      security:
+        - api_key:
+            - write:app_review
+            - read:app_review
+    delete:
+      tags:
+        - app_review
+      summary: Deletes an app review
+      description: delete a app review
+      operationId: delete_app_review
+      parameters:
+        - name: app_review_id
+          in: query
+          description: application review id to delete
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '400':
+          description: Invalid application revied ID value
+      security:
+        - api_key:
+            - write:app_review
+            - read:app_review    
+  /feature_review:
+    get:
+      tags:
+        - feature_review
+      summary: Get all feature reviews
+      description: Get all feature reviews, or specific by an user or id
+      operationId: get_feature_reviews
+      parameters:
+        - name: app_review_id
+          in: query
+          required: false
+          description: app review identifier
+          schema:
+            type : integer
+            format: int64
+        - name: feature_review_id
+          in: query
+          required: false
+          description: feature review identifier
+          schema:
+            type : integer
+            format: int64
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FeatureReview'          
+        '400':
+          description: Invalid status value
+      security:
+        - api_key:
+            - write:feature_review
+            - read:feature_review
+    post:
+      tags:
+        - feature_review
+      summary: Add a new feature review to the system
+      description: Add a new feature review to the system
+      operationId: create_feature_review
+      requestBody:
+        description: Create a new feature review
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeatureReview'
+        required: true
+      responses:
+        '201':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeatureReview'          
+        '400':
+          description: Invalid input
+        '422':
+          description: Validation exception
+      security:
+        - api_key:
+            - write:feature_review
+            - read:feature_review
+    delete:
+      tags:
+        - feature_review
+      summary: Deletes a feature review
+      description: delete a feature review
+      operationId: delete_feature_review
+      parameters:
+        - name: feature_review_id
+          in: query
+          description: feature review id to delete
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '400':
+          description: Invalid feature review ID value
+      security:
+        - api_key:
+            - write:feature_review
+            - read:feature_review    
+  /user_stats:
+    get:
+      tags:
+        - user_stats
+      summary: Get all users stats
+      description: Get all or specific user stats
+      operationId: get_user_stats
+      parameters:
+        - name: user
+          in: query
+          required: false
+          description: user identifier
+          schema:
+            type : integer
+            format: int64
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserStats'          
+        '400':
+          description: Invalid status value
+      security:
+        - api_key:
+            - write:user_stats
+            - read:user_stats
+    post:
+      tags:
+        - user_stats
+      summary: Add a new user stats to the system
+      description: Add a new user stats to the system
+      operationId: create_user_stats
+      requestBody:
+        description: Create a new user stats
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserStats'
+        required: true
+      responses:
+        '201':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserStats'          
+        '400':
+          description: Invalid input
+        '422':
+          description: Validation exception
+      security:
+        - api_key:
+            - write:user_stats
+            - read:user_stats
+    put:
+      tags:
+        - user_stats
+      summary: Update an existing user stats
+      description: Update an existing user stasts by its UserID
+      operationId: update_user_stats
+      requestBody:
+        description: Update an existent user stats in the system
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserStats'
+        required: true
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserStats'
+        '400':
+          description: Invalid ID supplied
+        '404':
+          description: UserStats not found
+        '422':
+          description: Validation exception
+      security:
+        - api_key:
+            - write:user_stats
+            - read:user_stats
+    delete:
+      tags:
+        - user_stats
+      summary: Deletes an user stats
+      description: delete a user stats
+      operationId: delete_user_stats
+      parameters:
+        - name: user_id
+          in: query
+          description: user stats id to delete
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '400':
+          description: Invalid user stats value
+      security:
+        - api_key:
+            - write:user_stats
+            - read:user_stats            
+  /users:
+    get:
+      tags:
+        - users
+      summary: Get all users
+      description: Get all or filtered by email users
+      operationId: get_users
+      parameters: 
+        - name: email
+          in: query
+          description: User email
+          required: false
+          explode: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'          
+        '400':
+          description: Invalid status value
+      security:
+        - api_key:
+            - write:users
+            - read:users
+    post:
+      tags:
+        - users
+      summary: Add a new user to the system
+      description: Add a new user to the system
+      operationId: create_user
+      requestBody:
+        description: Create a new user
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/User'
+        required: true
+      responses:
+        '201':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'          
+        '400':
+          description: Invalid input
+        '422':
+          description: Validation exception
+      security:
+        - api_key:
+            - write:users
+            - read:users
+    put:
+      tags:
+        - users
+      summary: Update an existing user
+      description: Update an existing user
+      operationId: update_user
+      requestBody:
+        description: Update an existent user in the system
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/User'
+        required: true
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Invalid ID supplied
+        '404':
+          description: UserStats not found
+        '422':
+          description: Validation exception
+      security:
+        - api_key:
+            - write:users
+            - read:users
+    delete:
+      tags:
+        - users
+      summary: Deletes an user
+      description: delete a user
+      operationId: delete_user
+      parameters:
+        - name: user_id
+          in: query
+          description: user id to delete
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '400':
+          description: Invalid user value
+      security:
+        - api_key:
+            - write:users
+            - read:users        
+  /user_vehicles:
+    get:
+      tags:
+        - user_vehicles
+      summary: Get all users vehicles
+      description: Get all, specific user or specific user vehicles
+      operationId: get_users_vehicles
+      parameters:
+        - name: user
+          in: query
+          required: false
+          description: user identifier
+          schema:
+            type : integer
+            format: int64
+        - name: user_vehicle_id
+          in: query
+          required: false
+          description: user vehicle identifier
+          schema:
+            type : integer
+            format: int64
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserVehicle'          
+        '400':
+          description: Invalid status value
+      security:
+        - api_key:
+            - write:user_vehicle
+            - read:user_vehicle
+    post:
+      tags:
+        - user_vehicles
+      summary: Add a new user vehicle to the system
+      description: Add a new user vehicle to the system
+      operationId: create_user_vehicle
+      requestBody:
+        description: Create a new user vehicles
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserVehicle'
+        required: true
+      responses:
+        '201':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserVehicle'          
+        '400':
+          description: Invalid input
+        '422':
+          description: Validation exception
+      security:
+        - api_key:
+            - write:user_vehicles
+            - read:user_vehicles
+    put:
+      tags:
+        - user_vehicles
+      summary: Update an existing user vehicle
+      description: Update an existing user vehicle
+      operationId: update_vehicle_user
+      requestBody:
+        description: Update an existent user vehicle in the system
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserVehicle'
+        required: true
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserVehicle'
+        '400':
+          description: Invalid ID supplied
+        '404':
+          description: UserVehicle not found
+        '422':
+          description: Validation exception
+      security:
+        - api_key:
+            - write:user_vehicles
+            - read:user_vehicles
+    delete:
+      tags:
+        - user_vehicles
+      summary: Deletes an user vehicle
+      description: delete a user vehicle
+      operationId: delete_user_vehicle
+      parameters:
+        - name: user_vehicle_id
+          in: query
+          description: user vehicles id to delete
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '400':
+          description: Invalid user vehicle value
+      security:
+        - api_key:
+            - write:user_stats
+            - read:user_stats      
+  /vehicles:
+    get:
+      tags:
+        - vehicles
+      summary: Finds all vehicles or those with a given filter on model name or by id
+      description: Retrieve a list of vehicles
+      operationId: get_vehicles
+      parameters:
+        - name: q
+          in: query
+          description: model name filter
+          required: false
+          explode: true
+          schema:
+            type: string
+        - name: vehicle_id
+          in: query
+          description: vehicle id
+          required: false
+          explode: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Vehicle'          
+        '400':
+          description: Invalid status value
+      security:
+        - api_key:
+            - write:vehicles
+            - read:vehicles
+    post:
+      tags:
+        - vehicles
+      summary: Add a new vehicle to the system
+      description: Add a new vehicle to the system
+      operationId: create_vehicle
+      requestBody:
+        description: Create a new vehicle
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Vehicle'
+        required: true
+      responses:
+        '201':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vehicle'          
+        '400':
+          description: Invalid input
+        '422':
+          description: Validation exception
+      security:
+        - api_key:
+            - write:vehicle
+            - read:vehicle
+    delete:
+      tags:
+        - vehicles
+      summary: Deletes a vehicle
+      description: delete a vehicle
+      operationId: delete_vehicle
+      parameters:
+        - name: vehicle_id
+          in: query
+          description: vehicles id to delete
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '400':
+          description: Invalid vehicle id value
+      security:
+        - api_key:
+            - write:vehicles
+            - read:vehicles    
+  /user_routes:
+    get:
+      tags:
+        - user_routes
+      summary: Get all users routes
+      description: Get all or specific user routes
+      operationId: get_user_routes
+      parameters:
+        - name: user
+          in: query
+          required: false
+          description: user identifier
+          schema:
+            type : integer
+            format: int64
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserRoute'          
+        '400':
+          description: Invalid status value
+      security:
+        - api_key:
+            - write:user_routes
+            - read:user_routes
+    post:
+      tags:
+        - user_routes
+      summary: Add a new user route to the system
+      description: Add a new user route to the system and recalculate the user stats
+      operationId: create_user_route
+      requestBody:
+        description: Create a new user stats
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRoute'
+        required: true
+      responses:
+        '201':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserRoute'          
+        '400':
+          description: Invalid input
+        '422':
+          description: Validation exception
+      security:
+        - api_key:
+            - write:user_routes
+            - read:user_routes
+    delete:
+      tags:
+        - user_routes
+      summary: Deletes an user route
+      description: delete a user route
+      operationId: delete_user_route
+      parameters:
+        - name: user_route_id
+          in: query
+          description: user route id to delete
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '400':
+          description: Invalid user route value
+      security:
+        - api_key:
+            - write:user_routes
+            - read:user_routes             
+  /routes:
+    get:
+      tags:
+        - routes
+      summary: Get all routes between source and destination
+      description: Get all routes between source and destination
+      operationId: get_all_routes
+      parameters:
+        - name: source
+          in: query
+          required: true
+          description: source coords (LAT,LON)
+          schema:
+            type : string
+            example: '0.0,0.0'
+        - name: destination
+          in: query
+          required: true
+          description: destination coords (LAT,LON)
+          schema:
+            type : string
+            example: '0.0,0.0'
+        - name: inner_coords
+          in: query
+          required: false
+          description: inner coords (LAT,LON), separated by ;
+          schema:
+            type : string
+            example: '0.0,0.0;0.0,0.0'
+        - name: vehicle_id
+          in: query
+          required: true
+          description: vehicle id
+          schema:
+            type : integer
+            format: int64
+            example: 1
+        - name: additional_mass
+          in: query
+          required: false
+          description: additional mass for the route
+          schema:
+            type : integer
+            format: int64
+            example: 74
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Route'          
+        '400':
+          description: Invalid status value
+      security:
+        - api_key:
+            - write:route
+            - read:route
+  /routes/performed_route:
+    post:
+      tags:
+        - routes
+      summary: Get real and estimated metrics related to performed route
+      description: Get real and estimated metrics related to performed route
+      operationId: calculate_performed_route_metrics
+      requestBody:
+        description: performed route information
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InputPerformedRoute'
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PerformedRouteMetrics'  
+                         
+        '400':
+          description: Invalid status value
+      security:
+        - api_key:
+            - write:route
+            - read:route
+components:
+  schemas:
+    AppReview:
+      type: object
+      properties:
+        AppReviewID:
+          type: integer
+          format: int64
+          example: 1
+        UserID:
+          type: integer
+          format: int64
+          example: 1
+        GlobalComments:
+          type: string
+          example: "Example comment"
+        GlobalScore:
+          type: number
+          example: 4.5
+      required:
+        - ID
+        - UserID
+        - GlobalComments
+        - GlobalScore
+    FeatureReview:
+      type: object
+      properties:
+        FeatureReviewID:
+          type: integer
+          format: int64
+          example: 1
+        AppReviewID:
+          type: integer
+          format: int64
+          example: 1
+        Topic:
+          type: string
+          default: ACCESABILITY
+          enum:
+              - ACCESABILITY
+              - RESPONSETIME
+              - CONFIGURABILITY
+              - USABILITY
+              - TRUSTABILITY
+              - ROBUSTNESS
+              - UTILITY
+        Score:
+          type: number
+          example: 4.5
+        Comments:
+          type: string
+          example: "Example comment"
+      required:
+        - ID
+        - AppReviewID
+        - Topic
+        - Score
+        - Comments
+    Vehicle:
+      type: object
+      properties:
+        VehicleID:
+          type: integer
+          format: int64
+          example: 1
+        Name:
+          type: string
+          example: "Vehicle name"
+        MotorType:
+          type: string
+          default: DIESEL
+          enum:
+              - ELECTRIC
+              - DIESEL
+              - GASOLINE
+              - HYBRID
+        UnladenVehMass:
+          type: number
+          example: 1000.0
+        PMaxKw:
+          type: number
+          example: 120.0
+        LitersConversion:
+          type: number
+          example: 10.8
+        A:
+          type: number
+          example: 1000.0
+        B:
+          type: number
+          example: 0.0
+        C:
+          type: number
+          example: 1000.0
+        Url:
+          type: string
+          example: "vehicle.com"
+        ImageUrl:
+          type: string
+          example: "vehicle.com/image.png"
+      required:
+        - VehicleID
+        - Name
+        - MotorType
+        - UnladenVehMass
+        - PMaxKw
+        - LitersConversion
+        - A
+        - B
+        - C
+        - Url
+        - ImageUrl
+    UserVehicle:
+      type: object
+      properties:
+        ID:
+          type: integer
+          format: int64
+          example: 1
+        UserID:
+          type: integer
+          format: int64
+          example: 1
+        VehicleID:
+          type: integer
+          format: int64
+          example: 1
+        Age: 
+          type: integer
+          format: int64
+          example: 6
+        KmUsed:
+          type: integer
+          format: int64
+          example: 10000
+        IsFav:
+          type: boolean
+          example: false
+      required:
+        - ID
+        - UserID
+        - VehicleID
+        - IsFav
+    User:
+      type: object
+      properties:
+        UserID:
+          type: integer
+          format: int64
+          example: 1
+        Name:
+          type: string
+          example: "user"
+        Email:
+          type: string
+          example: "user@mail.com"
+        Password:
+          type: string
+          example: "******"
+        BirthDate:
+          type: string
+          example: "01/01/2000"
+        Gender: 
+          type: string
+          example: "female"
+        DrivingLicenseYear:
+          type: string
+          example: "1998"
+      required:
+        - UserID
+        - Name
+        - Email
+        - Password
+    UserStats:
+      type: object
+      properties:
+        UserID:
+          type: integer
+          format: int64
+          example: 1
+        ConsumptionSaving:
+          type: number
+          example: 0.98
+        EcoTime:
+          type: number
+          example: 198.1
+        EcoDistance:
+          type: number
+          example: 18966.5
+        EcoRoutesNum:
+          type: integer
+          example: 6
+        DriveRating:
+          type: number
+          example: 4.9
+      required:
+        - UserID
+        - ConsumptionSaving
+        - EcoTime
+        - EcoDistance
+        - EcoRoutesNum
+        - DriveRating
+    UserRoute:
+      type: object
+      properties:
+        ID:
+          type: integer
+          format: int64
+          example: 1
+        UserID:
+          type: integer
+          format: int64
+          example: 1
+        UserVehicleID:
+          type: integer
+          format: int64
+          example: 1
+        AdditionalMass:
+          type: integer
+          format: int64
+          example: 70
+        SourceCoords:
+          type: string
+          example: "0.0,0.0"
+        DestinationCoords:
+          type: string
+          example: "0.0,0.0"
+        RecordDate:
+          type: string
+          example: "01/01/2024"
+        SelectedRoutePolyline:
+          type: string
+          example: "asdasdaadn"
+        SelectedRouteType:
+          type: string
+          example: ECO
+          enum: 
+          - ECO
+          - FASTEST
+          - SHORTEST
+        SelectedRouteConsumption:
+          type: number
+          example: 18966.5
+        SelectedRouteTime:
+          type: integer
+          format: int64
+          example: 120
+        SelectedRouteDistance:
+          type: integer
+          format: int64
+          example:  1503
+        PerformedRoutePolyline:
+          type: string
+          example: "asdasdaadnasdas"
+        PerformedRouteConsumption:
+          type: number
+          example: 18220.1
+        PerformedRouteTime:
+          type: integer
+          format: int64
+          example: 140
+        PerformedRouteDistance:
+          type: integer
+          format: int64
+          example:  1501
+        PerformedRouteEstimatedConsumption:
+          type: number
+          example: 18220.1
+        PerformedRouteEstimatedTime:
+          type: integer
+          format: int64
+          example: 140
+        PerformedRouteEstimatedDistance:
+          type: integer
+          format: int64
+          example:  1501
+        NumStopsKm:
+          type: integer
+          format: int64
+          example:  3
+        SpeedVariationNum:
+          type: integer
+          format: int64
+          example:  4
+        DrivingAggressiveness:
+          type: integer
+          format: int64
+          example:  1
+      required:
+        - ID
+        - UserID
+        - UserVehicleID
+        - AdditionalMass
+        - Source
+        - Destination
+        - RecordDate
+        - SelectedRoutePolyline
+        - SelectedRouteType
+        - SelectedRouteConsumption
+        - SelectedRouteTime
+        - SelectedRouteDistance
+        - PerformedRoutePolyline
+        - PerformedRouteConsumption
+        - PerformedRouteTime
+        - PerformedRouteDistance
+        - PerformedRouteEstimatedConsumption
+        - PerformedRouteEstimatedTime
+        - PerformedRouteEstimatedDistance
+        - NumStopsKm
+        - SpeedVariationNum
+        - DrivingAggressiveness
+    Route:
+      type: object
+      properties:
+        EnergyConsumption:
+          type: number
+          example: 20.1
+        Distance:
+          type: number
+          example: 200.0
+        Time:
+          type: integer
+          format: int64
+          example: 158
+        Route:
+          type: string
+          example: "asdjasdnuandweua"
+      required:
+        - EnergyConsumption
+        - Distance
+        - Time
+        - Route
+    InputPerformedRoute:
+      type: object
+      properties:
+        VehicleID:
+          type: integer
+          format: int64
+          example: 1
+        AdditionalMass:
+          type: number
+          example: 200.0
+        Speeds:
+          type: array
+          items:
+            type: integer
+          example: [0.0, 0.0]
+        Heights:
+          type: array
+          items:
+            type: integer
+          example: [0.0, 0.0]
+        Times:
+          type: array
+          items:
+            type: integer
+          example: [0.0, 0.0]
+        RoutePolyline:
+          type: string
+          example: 'asdasdkmadw'
+      required:
+        - VehicleID
+        - AdditionalMass
+        - Speeds
+        - Heights
+        - Times
+        - RoutePolyline
+    PerformedRouteMetrics:
+      type: object
+      properties:
+        PerformedRouteConsumption:
+          type: number
+          example: 20.1
+        PerformedRouteDistance:
+          type: number
+          example: 200.0
+        PerformedRouteTime:
+          type: integer
+          format: int64
+          example: 158
+        PerformedRouteEstimatedConsumption:
+          type: number
+          example: 20.1
+        PerformedRouteEstimatedDistance:
+          type: number
+          example: 200.0
+        PerformedRouteEstimatedTime:
+          type: integer
+          format: int64
+          example: 158
+        NumStopsKm:
+          type: integer
+          format: int64
+          example: 3
+        SpeedVariationNum:
+          type: integer
+          format: int64
+          example: 5
+        DrivingAggressiveness:
+          type: integer
+          format: int64
+          example: 5
+  securitySchemes:
+    api_key:
+      type: apiKey
+      name: api_key
+      in: header
