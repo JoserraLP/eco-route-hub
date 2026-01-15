@@ -1,11 +1,10 @@
 import concurrent
+import math
 from statistics import mean
 
 import pandas as pd
 import polyline
 import requests
-
-import math
 
 from route_consumption_estimator.graph.models import Coords
 from route_consumption_estimator.static.constants import *
@@ -46,11 +45,11 @@ def process_route(route_coordinates: list, common_source: Coords, common_target:
     distances.append(0)
 
     # Retrieve heights
-    heights = retrieve_heights_threads(route_extended_coordinates)
+    heights = retrieve_heights(route_extended_coordinates)
     # Calculate the slopes  with the distances and heights
     slopes = calculate_slopes(distances, heights)
     # Retrieve maximum speed
-    max_speeds = retrieve_max_speeds_threads(route_extended_coordinates)
+    max_speeds = retrieve_max_speeds(route_extended_coordinates)
     # Retrieve indices for segmented route
     # This method is commented as it removes too much points
     indices = segment_route(max_speeds, slopes)
@@ -152,7 +151,7 @@ def retrieve_heights(route_coordinates: list[Coords]) -> list:
     return heights
 
 
-def retrieve_heights_polyline(route_coordinates: list[Coords]) -> list:
+#def retrieve_heights_polyline(route_coordinates: list[Coords]) -> list:
     """
     Retrieve heights values of the input route coordinates requested as polyline
 
@@ -160,6 +159,7 @@ def retrieve_heights_polyline(route_coordinates: list[Coords]) -> list:
     :type route_coordinates: list[Coords]
     :return: list with associated heights
     :rtype: list
+    """
     """
     all_coordinates = [(coords.lat, coords.lon) for coords in route_coordinates]
 
@@ -175,7 +175,7 @@ def retrieve_heights_polyline(route_coordinates: list[Coords]) -> list:
     heights = [result['elevation'] for result in results['results']]
 
     return heights
-
+    """
 
 def retrieve_heights_coordinates(route_coordinates: list[Coords]) -> list:
     """
@@ -339,11 +339,14 @@ def retrieve_max_speeds(route_coordinates: list[Coords]):
         # Get current and next speed
         cur_max_speed = max_speeds[i]
         next_max_speed = max_speeds[i + 1]
+        if cur_max_speed == -1:
+            # This value is default (invented)
+            max_speeds[i] = 50
         # Check if default value to extend it from previous value
         if next_max_speed == -1:
             max_speeds[i + 1] = cur_max_speed
 
-    return max_speeds, add_info
+    return max_speeds
 
 
 def segment_route(max_speeds: list, slopes: list) -> list:

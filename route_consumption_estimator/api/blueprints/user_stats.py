@@ -1,5 +1,7 @@
 import numpy as np
 from flask import Blueprint, jsonify, request
+
+import route_consumption_estimator
 from route_consumption_estimator.api.models import *
 from route_consumption_estimator.api.security import api_required
 
@@ -8,6 +10,7 @@ user_stats_bp = Blueprint('user_stats', __name__)
 
 user_stat_schema = UserStatsSchema()
 user_stats_schema = UserStatsSchema(many=True)
+user_routes_schema = UserRouteSchema(many=True)
 
 
 # Create an endpoint to get all user stats
@@ -47,7 +50,7 @@ def create_user_stats():
     db.session.add(user_stat)
     db.session.commit()
     # Serialize the user stat as JSON
-    result = user_stats_schema.dump(user_stat)
+    result = user_stat_schema.dump(user_stat)
     # Return the JSON response with A 201 created status
     return jsonify(result), 201
 
@@ -119,9 +122,12 @@ def recalculate_user_stats(user_id):
 
     # Query all the user routes
     user_routes = UserRoute.query.filter_by(UserID=user_id)
+
+    user_routes = user_routes_schema.dump(user_routes)
+
     # Define variable to store the values
-    consumption_saving = 0.0
-    total_consumption = 0.0
+    total_estimated_consumption = 0.0
+    total_real_consumption = 0.0
     eco_time = 0.0
     total_time = 0.0
     eco_distance = 0.0
@@ -131,34 +137,30 @@ def recalculate_user_stats(user_id):
 
     for user_route in user_routes:
         # Difference of performed routes consumptions
-        total_consumption += float(user_route.PerformedRouteEstimatedConsumption) - \
-                             float(user_route.PerformedRouteConsumption)
-        total_time += int(user_route.PerformedRouteEstimatedTime)
-        total_distance += int(user_route.PerformedRouteEstimatedDistance)
-        # Only count the selected route type if ECO
-        if user_route.SelectedRouteType == 'ECO':
-            # Difference of performed routes consumptions
-            consumption_saving += float(user_route.PerformedRouteEstimatedConsumption) - \
-                                  float(user_route.PerformedRouteConsumption)
-
-            eco_time += int(user_route.PerformedRouteEstimatedTime)
-            eco_distance += int(user_route.PerformedRouteEstimatedDistance)
+        total_estimated_consumption += float(user_route['PerformedRouteEstimatedConsumption'])
+        total_real_consumption += float(user_route['PerformedRouteConsumption'])
+        total_time += int(user_route['PerformedRouteTime'])
+        total_distance += int(user_route['PerformedRouteDistance'])
+        # Only count the selected route type if ECO and route is not selected
+        if user_route['SelectedRouteType'] == 'ECO' and user_route['SelectedRoutePolyline'] != 'null':
+            eco_time += int(user_route['PerformedRouteTime'])
+            eco_distance += int(user_route['PerformedRouteDistance'])
             eco_routes_num += 1
 
         # average of all the three metrics
-        drive_rating.append(np.mean([int(user_route.NumStopsKm), int(user_route.SpeedVariationNum),
-                                     int(user_route.DrivingAggressiveness)]))
+        # int(user_route['NumStopsKm'])
+        drive_rating.append(np.mean([int(user_route['SpeedVariationNum']),
+                                     int(user_route['DrivingAggressiveness'])]))
 
     # Query the database for the user stat with the given user ID
     user_stats = UserStats.query.get(user_id)
 
-    total_consumption = 1 if total_consumption == 0 else consumption_saving
-
     # Update the user stats attributes
-    user_stats.ConsumptionSaving = consumption_saving / total_consumption
-    user_stats.EcoTime = eco_time / total_time
-    user_stats.EcoDistance = eco_distance / total_distance
-    user_stats.EcoRoutesNum = eco_routes_num / len(drive_rating)
+    user_stats.ConsumptionSaving = 100 * (total_estimated_consumption - total_real_consumption) / \
+                                   max([total_estimated_consumption, total_real_consumption])
+    user_stats.EcoTime = 100 * eco_time / total_time
+    user_stats.EcoDistance = 100 * eco_distance / total_distance
+    user_stats.EcoRoutesNum = 100 * eco_routes_num / len(drive_rating)
     user_stats.DriveRating = np.mean(drive_rating)
 
     # Commit the changes to the database

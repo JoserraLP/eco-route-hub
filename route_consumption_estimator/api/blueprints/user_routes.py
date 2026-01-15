@@ -21,7 +21,7 @@ def get_user_routes():
     user = request.args.get('user', '')
     if user:
         # Query the database for the user_routes with the given user
-        user_routes = UserRoute.query.filter_by(UserID=user)
+        user_routes = UserRoute.query.filter_by(UserID=user).order_by(UserRoute.RecordDate.desc()).limit(5)
     else:
         # Query the database for all user routes
         user_routes = UserRoute.query.all()

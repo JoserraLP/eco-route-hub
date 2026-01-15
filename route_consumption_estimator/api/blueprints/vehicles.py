@@ -52,7 +52,7 @@ def create_vehicle():
     # Get B or at least by default value
     B = data.get('B', DEFAULT_VEHICLE_B)
     # Calculate C
-    # FrontalArea = 0.85 * Width (mm) * Height (mm)
+    # FrontalArea = 0.85 * Width (m) * Height (m)
     # Parse Width and Height to meters
     FrontalArea = 0.85 * data.get('Width', 0) / 1000 * data.get('Height', 0) / 1000
     # C = 0.5 * 1.225 * FrontalArea * Cx * (1 / 3.6)^2

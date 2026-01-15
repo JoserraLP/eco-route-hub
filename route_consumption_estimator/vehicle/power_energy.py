@@ -51,6 +51,8 @@ class PowerEnergyEstimator:
             self._power[i] = self._traction_force[i] * speed_km_h[i] / 3.6
             self._instant_energy_kw_h[i] = 0.5 * (self._power[i] + self._power[i - 1]) * \
                                            (self._speed_profile.time[i] - self._speed_profile.time[i - 1]) / 3600 / 1000
+
+            # This is the electric final consumption
             self._accumulated_engine_energy_kw_h[i] = self._accumulated_engine_energy_kw_h[i - 1] + \
                                                       self._instant_energy_kw_h[i]
 
@@ -68,7 +70,9 @@ class PowerEnergyEstimator:
 
             if electric:
                 # I suppose there is no idle consumption on electric vehicles
-                self._consumption[i] = self._consumption[i - 1] + self._instant_energy_fixed_kw_h[i]
+                # For electric, consumption is just the accumulated engine energy kw h divided by 0.90
+                self._consumption[i] = self._accumulated_engine_energy_kw_h[i]/0.9
+
             else:
                 # Combustion or hybrid
                 if speed_km_h[i] < 0.1:

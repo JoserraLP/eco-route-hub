@@ -39,6 +39,11 @@ def create_user():
     if 'Name' not in data or 'Email' not in data or 'Password' not in data:
         # Return A 400 bad request error
         return jsonify({'message': 'Missing data'}), 400
+    # Get user by email if exists, show an error
+    existing_user = User.query.filter_by(Email=data.get('Email'))
+    if existing_user:
+        # Return A 400 bad request error
+        return jsonify({'message': 'Email already used. Please select another'}), 400
     # Create new user object
     user = User(Name=data.get('Name'), Email=data.get('Email'), Password=data.get('Password'),
                 BirthDate=data.get('BirthDate'), Gender=data.get('Gender'),

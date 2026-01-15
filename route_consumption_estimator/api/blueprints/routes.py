@@ -5,7 +5,8 @@ from route_consumption_estimator.api.constants import DEFAULT_USER_ROUTE_ADDITIO
 from route_consumption_estimator.api.models import Vehicle
 from route_consumption_estimator.api.security import api_required
 from route_consumption_estimator.api.utils import request_routes, process_route_information, \
-    estimate_consumption_routes, calculate_real_consumption, evaluate_consumption
+    estimate_consumption_routes, calculate_real_consumption, evaluate_consumption, smoothing_process
+from route_consumption_estimator.graph.models import Coords
 from route_consumption_estimator.routers.utils import process_route
 from route_consumption_estimator.vehicle.veh_model import VehicleModel
 
@@ -39,13 +40,13 @@ def get_all_routes():
             vehicle.recalculate_a(int(additional_mass))
 
         # Create a vehicle using the simulator model
-        simulator_vehicle = VehicleModel(total_veh_mass=int(vehicle.UnladenVehMass + int(additional_mass)),
+        simulator_vehicle = VehicleModel(total_veh_mass=int(vehicle.UnladenVehMass) + int(additional_mass),
                                          liters_conversion=float(vehicle.LitersConversion),
                                          p_max_kw=float(vehicle.PMaxKw),
                                          A=float(vehicle.A),
                                          B=float(vehicle.B),
                                          C=float(vehicle.C),
-                                         motor_type=str(Vehicle.MotorType))
+                                         motor_type=str(vehicle.MotorType))
 
         estimations = estimate_consumption_routes(routes, routes_information, simulator_vehicle)
 
@@ -86,12 +87,13 @@ def calculate_performed_route_metrics():
     # Get additional mass
     additional_mass = data['AdditionalMass'] if 'AdditionalMass' in data else None
 
-    # Also get the speeds, heights and times
-    speeds = data['Speeds']
-    # This is for km/h speeds, in the end we are going to use m/s but examples are on km/h
-    # speeds = [item/3.6 for item in data['speeds']]
-    heights = data['Heights']
-    times = data['Times']  # Represented as difference of time between measurements
+    # Also get the speeds, heights and times. Smooth them based on alpha
+    # This is for km/h speeds, parse to m/s
+    speeds = smoothing_process([item / 3.6 for item in data['Speeds']], alpha=0.3)
+
+    heights = smoothing_process(data['Heights'], alpha=0.3)
+
+    times = data['Times']  # Represented as difference of time seconds between measurements
 
     # Get vehicle to simulate
     vehicle = Vehicle.query.get(vehicle_id)
@@ -101,13 +103,14 @@ def calculate_performed_route_metrics():
         vehicle.recalculate_a(int(additional_mass))
 
     # Create a vehicle using the simulator model
-    simulator_vehicle = VehicleModel(total_veh_mass=int(vehicle.UnladenVehMass + int(additional_mass)),
+    simulator_vehicle = VehicleModel(total_veh_mass=int(vehicle.UnladenVehMass) + int(additional_mass),
                                      liters_conversion=float(vehicle.LitersConversion),
                                      p_max_kw=float(vehicle.PMaxKw),
                                      A=float(vehicle.A),
                                      B=float(vehicle.B),
                                      C=float(vehicle.C),
-                                     motor_type=str(Vehicle.MotorType))
+                                     motor_type=str(vehicle.MotorType))
+
     # Calculate performed route real consumption based on input data
     performed_route_metrics, accelerations = calculate_real_consumption(speeds=speeds, heights=heights, times=times,
                                                                         vehicle=simulator_vehicle)
@@ -118,7 +121,8 @@ def calculate_performed_route_metrics():
                                'PerformedRouteTime': performed_route_metrics['Time']}
 
     evaluation = evaluate_consumption(speeds=speeds, accelerations=accelerations,
-                                      total_length=performed_route_metrics['Distance'])
+                                      total_length=performed_route_metrics['PerformedRouteDistance'],
+                                      times=times)
 
     # Performed route estimation
     # Get performed route polyline
@@ -126,19 +130,28 @@ def calculate_performed_route_metrics():
 
     performed_route_coords = polyline.decode(performed_route_polyline, 6)
 
-    performed_route_info = [process_route(route_coordinates=performed_route_coords,
-                                          common_source=performed_route_coords[0],
-                                          common_target=performed_route_coords[-1])]
+    # Parse polyline into list of coords
+    performed_route_coords = [Coords(lat=item[0], lon=item[1]) for item in performed_route_coords]
+
+    processed_performed_route = process_route(route_coordinates=performed_route_coords,
+                                              common_source=performed_route_coords[0],
+                                              common_target=performed_route_coords[-1])
+
+    routes_information = process_route_information([processed_performed_route])
+
+    # Create the list with the information
+    performed_route_info = routes_information
 
     # Calculate performed route estimated consumption based on maximum speeds
     performed_route_estimated_metrics = estimate_consumption_routes(routes_information=performed_route_info,
                                                                     routes=performed_route_info,
-                                                                    vehicle=vehicle)
+                                                                    vehicle=simulator_vehicle)
     # Rename keys
+    # Item 0 as it is a list
     performed_route_estimated_metrics = {'PerformedRouteEstimatedConsumption':
-                                             performed_route_estimated_metrics['EnergyConsumption'],
+                                             performed_route_estimated_metrics[0]['EnergyConsumption'],
                                          'PerformedRouteEstimatedDistance':
-                                             performed_route_estimated_metrics['Distance'],
-                                         'PerformedRouteEstimatedTime': performed_route_estimated_metrics['Time']}
+                                             performed_route_estimated_metrics[0]['Distance'],
+                                         'PerformedRouteEstimatedTime': performed_route_estimated_metrics[0]['Time']}
 
     return {**performed_route_metrics, **evaluation, **performed_route_estimated_metrics}

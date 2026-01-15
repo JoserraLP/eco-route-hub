@@ -179,9 +179,9 @@ class SpeedProfile:
                     a = self._acceleration_limit
 
                 # A speed is calculated as a function of the acceleration imposed in the previous steps
-                speed_calc = self._speed_m_s[self._step - 1] + a * self._delta_t[i]
+                speed_calc = max(self._speed_m_s[self._step - 1] + a * self._delta_t[i], 0)
                 # Speed is smoothed to avoid oscillations
-                if abs(speed_calc - speed_limit) < 0.1:
+                if speed_calc - speed_limit < 0.1 or speed_calc > speed_limit:
                     self._speed_m_s.append(speed_limit)
                 else:
                     self._speed_m_s.append(speed_calc)
