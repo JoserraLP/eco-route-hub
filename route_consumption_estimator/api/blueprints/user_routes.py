@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, request
 from datetime import datetime
 from route_consumption_estimator.api.blueprints.user_stats import recalculate_user_stats
-from route_consumption_estimator.api.constants import DEFAULT_USER_ROUTE_ADDITIONAL_MASS
+from route_consumption_estimator.core.constants import DEFAULT_USER_ROUTE_ADDITIONAL_MASS
 from route_consumption_estimator.api.models import *
 from route_consumption_estimator.api.security import api_required
 

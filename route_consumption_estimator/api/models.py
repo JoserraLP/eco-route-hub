@@ -1,5 +1,5 @@
 from route_consumption_estimator import db, ma
-from route_consumption_estimator.api.constants import DEFAULT_VEHICLE_RF, GRAVITY
+from route_consumption_estimator.core.constants import GRAVITY
 
 
 # Define your models and schemas here

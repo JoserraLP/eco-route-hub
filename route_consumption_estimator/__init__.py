@@ -3,7 +3,7 @@ from flask_marshmallow import Marshmallow
 from flask_sqlalchemy import SQLAlchemy
 
 from route_consumption_estimator.api.config import default
-from route_consumption_estimator.static.constants import API_KEY
+from route_consumption_estimator.core.constants import API_KEY
 
 # Create the SQLAlchemy and Marshmallow objects
 db = SQLAlchemy()

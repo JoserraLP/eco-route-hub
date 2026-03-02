@@ -2,7 +2,7 @@ from flask import Blueprint, jsonify, request
 from route_consumption_estimator.api.models import *
 from route_consumption_estimator.api.security import api_required
 
-from route_consumption_estimator.api.constants import *
+from route_consumption_estimator.core.constants import *
 
 # vehicles blueprint
 vehicles_bp = Blueprint('vehicles', __name__)

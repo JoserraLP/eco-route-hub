@@ -1,7 +1,6 @@
 import numpy as np
 from flask import Blueprint, jsonify, request
 
-import route_consumption_estimator
 from route_consumption_estimator.api.models import *
 from route_consumption_estimator.api.security import api_required
 
