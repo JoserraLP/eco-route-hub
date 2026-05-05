@@ -1,0 +1,7 @@
+GRAVITY = 9.81
+EARTH_RADIUS = 6371000
+
+PLUGIN_TYPE_ROAD_INFORMATION = "road_information"
+PLUGIN_TYPE_ROAD_ROUTING = "road_routing_services"
+PLUGIN_TYPE_VEHICLE_ENGINE_MODEL = "vehicle_engine_model"
+PLUGIN_TYPE_VEHICLE_INFORMATION = "vehicle_information"

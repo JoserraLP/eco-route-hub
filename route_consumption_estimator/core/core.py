@@ -1,49 +1,37 @@
 import numpy as np
 import polyline
+from flask import current_app
 
-from route_consumption_estimator.core.constants import SMOOTHING_FACTOR_ALPHA, OSRM_QUERY_PARAMS, \
-    GRAPHHOPPER_QUERY_PARAMS, OPENROUTESERVICE_QUERY_PARAMS, DEFAULT_POLYLINE_PRECISION
-from route_consumption_estimator.core.graph.graph_engine import GraphEngine
-from route_consumption_estimator.core.graph.models import Coords
-from route_consumption_estimator.core.route.route_model import RouteModel
-from route_consumption_estimator.core.route.route_processor import RouteProcessor
-from route_consumption_estimator.core.utils import calculate_distances, calculate_slopes, smoothing_process, \
-    evaluate_consumption
-from route_consumption_estimator.road_routing_services.graphhopper import GraphHopper
-from route_consumption_estimator.road_routing_services.ors import OpenRouteService
-from route_consumption_estimator.road_routing_services.osrm import OSRM
-from route_consumption_estimator.vehicle_engine_model.greta_engine_model.greta_engine_model import GretaEngineModel
-from route_consumption_estimator.vehicle_information.vehicle_information_database import VehicleInformationDatabase
-
+from route_consumption_estimator.core import GraphEngine, PluginRegistry, RouteProcessor, \
+    calculate_distances, calculate_slopes, smoothing_process, evaluate_consumption
+from route_consumption_estimator.domain import Coords, RouteModel
+from route_consumption_estimator.domain.constants import PLUGIN_TYPE_ROAD_ROUTING, \
+    PLUGIN_TYPE_VEHICLE_INFORMATION, PLUGIN_TYPE_VEHICLE_ENGINE_MODEL, PLUGIN_TYPE_ROAD_INFORMATION
 
 class Core:
 
-    def __init__(self, vehicle_id: str, additional_mass: int = 0, alpha=SMOOTHING_FACTOR_ALPHA):
+    def __init__(self, registry: PluginRegistry,
+                 vehicle_id: str,
+                 additional_mass: int = 0,
+                 alpha=None):
 
-        self._road_routing_services = [
-            OSRM(params=OSRM_QUERY_PARAMS),
-            GraphHopper(params=GRAPHHOPPER_QUERY_PARAMS),
-            OpenRouteService(params=OPENROUTESERVICE_QUERY_PARAMS)
-        ]
+        self._registry = registry
 
-        self._vehicle_information_models = [
-            VehicleInformationDatabase()
-        ]
-
-        self._vehicle_engine_models = [
-            GretaEngineModel()
-        ]
+        self._road_information_providers = registry.get_all(PLUGIN_TYPE_ROAD_INFORMATION)
+        self._road_routing_providers = registry.get_all(PLUGIN_TYPE_ROAD_ROUTING)
+        self._vehicle_engine_model_providers = registry.get_all(PLUGIN_TYPE_VEHICLE_ENGINE_MODEL)
+        self._vehicle_information_providers = registry.get(PLUGIN_TYPE_VEHICLE_INFORMATION)
 
         self._graph_engine = GraphEngine()
+        self._route_processor = RouteProcessor(self._road_information_providers)
 
-        self._route_processor = RouteProcessor()
-
-        self._alpha = alpha
+        current_app_config = current_app.config["APP_CONFIG"].system
+        self._alpha = alpha if alpha else current_app_config.smoothing_factor_alpha
 
         # Get vehicle information and core model
-        vehicle_information = self._vehicle_information_models[0].get_vehicle_info_by_id(vehicle_id)
+        vehicle_information = self._vehicle_information_providers.get_vehicle_info_by_id(vehicle_id)
 
-        self._vehicle_model = self._vehicle_information_models[0].get_vehicle_model(vehicle=vehicle_information,
+        self._vehicle_model = self._vehicle_information_providers.get_vehicle_model(vehicle=vehicle_information,
                                                                                     additional_mass=additional_mass)
 
     def request_all_routes(self, coordinates_str: str):
@@ -51,10 +39,16 @@ class Core:
                              for coordinates in coordinates_str.split(';')]
 
         routes = []
-
-        for service in self._road_routing_services:
-            service_routes = service.get_routes(route_coordinates)
-            routes += service_routes
+        for road_routing_service in self._road_routing_providers:
+            service_routes = road_routing_service.get_routes(route_coordinates)
+            for service_route in service_routes:
+                routes.append(self._route_processor.process_route(
+                    route_coordinates=service_route['route_coordinates'],
+                    common_source=service_route['common_source'],
+                    common_target=service_route['common_target'],
+                    router_distance=service_route['router_distance'],
+                    router_duration=service_route['router_duration']
+                ))
 
         print(f"Total possible routes {len(routes)}")
 
@@ -74,11 +68,13 @@ class Core:
         if avg_route_distance == 0:
             avg_route_distance = routes[0]['distances'][-1]
 
-        # Get the routes information (by micro segments)
+        # Get the routes' information (by micro segments)
         return self._graph_engine.get_routes_information(avg_route_distance)
 
     # CONSUMPTION ESTIMATION
     def estimate_consumption_routes(self, routes: list, routes_information: list):
+        current_app_config = current_app.config["APP_CONFIG"].system
+
         all_estimations = []
         # Create a route class with each route
         for i, route_information in enumerate(routes_information):
@@ -87,17 +83,15 @@ class Core:
             if 'segments_representation' in routes[i]:
                 processed_route = [(item.lat, item.lon) for item in routes[i]['segments_representation']]
 
-                encoded_route = polyline.encode(processed_route, DEFAULT_POLYLINE_PRECISION)
+                encoded_route = polyline.encode(processed_route, current_app_config.polyline_precision)
 
             route = RouteModel(segment_start_point=route_information['start_points'],
                                speed_limit_km_h=route_information['max_speeds'],
                                slope=route_information['slopes'])
 
-            for vehicle_engine_model in self._vehicle_engine_models:
+            for vehicle_engine_model in self._vehicle_engine_model_providers:
                 # Set current route and vehicle information
-                vehicle_engine_model.route = route
-                vehicle_engine_model.vehicle = self._vehicle_model
-
+                vehicle_engine_model.load_route_and_vehicle(route, self._vehicle_model)
                 vehicle_engine_model.perform_speed_profile_estimation()
 
                 vehicle_engine_model.perform_power_energy_consumption_calculation()
@@ -137,7 +131,8 @@ class Core:
 
     # REAL CONSUMPTION CALCULATION
     def process_polyline_route(self, route_polyline: str):
-        performed_route_coords = polyline.decode(route_polyline, DEFAULT_POLYLINE_PRECISION)
+        current_app_config = current_app.config["APP_CONFIG"].system
+        performed_route_coords = polyline.decode(route_polyline, current_app_config.polyline_precision)
 
         # Parse polyline into list of coords
         performed_route_coords = [Coords(lat=item[0], lon=item[1]) for item in performed_route_coords]
@@ -159,9 +154,9 @@ class Core:
     def execute_route_real_consumption_workflow(self, vehicle_id: str, additional_mass: int, heights: list,
                                                 speeds: list, times: list):
         # Get vehicle information and core model
-        vehicle_information = self._vehicle_information_models[0].get_vehicle_info_by_id(vehicle_id)
+        vehicle_information = self._vehicle_information_providers.get_vehicle_info_by_id(vehicle_id)
 
-        vehicle = self._vehicle_information_models[0].get_vehicle_model(vehicle=vehicle_information,
+        vehicle = self._vehicle_information_providers.get_vehicle_model(vehicle=vehicle_information,
                                                                         additional_mass=additional_mass)
 
         # Create a path model with the input data
@@ -174,7 +169,7 @@ class Core:
         route = RouteModel(segment_start_point=segment_start_point,
                            slope=slopes, speed_limit_km_h=speeds)
 
-        for vehicle_engine_model in self._vehicle_engine_models:
+        for vehicle_engine_model in self._vehicle_engine_model_providers:
             vehicle_engine_model.vehicle = vehicle
             vehicle_engine_model.route = route
 

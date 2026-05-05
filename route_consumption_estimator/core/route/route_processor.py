@@ -2,28 +2,88 @@ import math
 from statistics import mean
 
 import pandas as pd
+from flask import current_app
 
-from route_consumption_estimator.core.constants import EARTH_RADIUS, BATCHING_WINDOW_SIZE, SLOPE_THRESHOLD, \
-    DISTANCE_BETWEEN_NEW_NODES, SLOPE_VARIANCE_DIFFERENCE
-from route_consumption_estimator.core.graph.models import Coords
-from route_consumption_estimator.road_information.nominatim import Nominatim
-from route_consumption_estimator.road_information.opentopodata import OpenTopoData
+from route_consumption_estimator.domain.constants import EARTH_RADIUS
+from route_consumption_estimator.domain import Coords
+
+
+def calculate_distance(coord1_lat, coord1_lon, coord2_lat, coord2_lon):
+    # Parse degrees to radians
+    lon1, lat1, lon2, lat2 = map(math.radians, [coord1_lon, coord1_lat, coord2_lon, coord2_lat])
+
+    # Haversine formula
+    # Calculate difference of coordinates
+    lon_diff = lon2 - lon1
+    lat_diff = lat2 - lat1
+    # Calculate a value
+    a = math.sin(lat_diff / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(lon_diff / 2) ** 2
+    # Calculate C value
+    c = 2 * math.asin(math.sqrt(a))
+
+    return c * EARTH_RADIUS
+
+
+def calculate_extended_coords_and_distances(route_coordinates: list):
+    """
+    Calculate the extended route (with additional coordinates) along with its distances between nodes
+
+    :param route_coordinates: input route coordinates
+    :type route_coordinates: list
+    :return: list of coordinates of extended route and its distances
+    """
+
+    # Create list for extended nodes and distances
+    route_extended_coordinates, distances = [], []
+
+    # Define destination as None
+    destination = None
+
+    # Iterate over the nodes in packs of two
+    for source, destination in zip(route_coordinates, route_coordinates[1:]):
+        # Calculate distance between source and destination
+        # distance = gd((source.lon, source.lat), (destination.lon, destination.lat)).meters
+
+        # Calculate distance between source and destination
+        distance = calculate_distance(source.lat, source.lon, destination.lat, destination.lon)
+
+        # Add source node to extended route
+        route_extended_coordinates.append(source)
+
+        # Append the distance
+        distances.append(distance)
+
+    # Add destination node outside the loop as it is the last element
+    route_extended_coordinates.append(destination)
+
+    return route_extended_coordinates, distances
 
 
 class RouteProcessor:
 
-    def __init__(self, batching_window_size=BATCHING_WINDOW_SIZE,
-                 slope_threshold=SLOPE_THRESHOLD,
-                 distance_between_nodes=DISTANCE_BETWEEN_NEW_NODES,
-                 slope_variance_difference=SLOPE_VARIANCE_DIFFERENCE):
-        self._batching_window_size = batching_window_size
-        self._slope_threshold = slope_threshold
-        self._distance_between_nodes = distance_between_nodes
-        self._slope_variance_difference = slope_variance_difference
-        self._nominatim = Nominatim()
-        self._opentopodata = OpenTopoData()
+    def __init__(self, road_information_providers: list,
+                 batching_window_size=None,
+                 slope_threshold=None,
+                 distance_between_nodes=None,
+                 slope_variance_difference=None):
+        current_app_config = current_app.config["APP_CONFIG"].system
 
-    def process_route(self, route_coordinates: list, common_source: Coords, common_target: Coords) -> dict:
+        self._batching_window_size = batching_window_size if batching_window_size \
+            else current_app_config.batching_window_size
+        self._slope_threshold = slope_threshold if slope_threshold \
+            else current_app_config.slope_threshold
+        self._distance_between_nodes = distance_between_nodes if distance_between_nodes \
+            else current_app_config.distance_between_nodes
+        self._slope_variance_difference = slope_variance_difference if slope_variance_difference \
+            else current_app_config.slope_variance_difference
+        self._road_information_providers = road_information_providers \
+            if isinstance(road_information_providers, list) else [road_information_providers]
+
+    def process_route(self, route_coordinates: list,
+                      common_source: Coords,
+                      common_target: Coords,
+                      router_distance: float = None,
+                      router_duration: float = None) -> dict:
 
         """
         Process and segment the input route coordinates and return its related values (segments, heights, max_speed,
@@ -35,33 +95,37 @@ class RouteProcessor:
         :type common_target: Coords
         :param route_coordinates: coordinates of the input route
         :type route_coordinates: list
+        :param router_distance: router distance
+        :type router_distance: float
+        :param router_duration: router duration
+        :type router_duration: float
         :return: dictionary with the processed route (segments, heights, max_speed, distances and slopes)
         """
         # Append to routes coordinates the common source
         route_coordinates.insert(0, common_source)
 
         # Calculate the extended coordinates along with distances
-        route_extended_coordinates, distances = self.calculate_extended_coords_and_distances(route_coordinates)
+        route_extended_coordinates, distances = calculate_extended_coords_and_distances(route_coordinates)
 
         # Append to extended route the common target with a distance of 0 (default)
         route_extended_coordinates.append(common_target)
         distances.append(0)
 
-        road_info = self._opentopodata.retrieve_road_info(route_extended_coordinates)
-        # Retrieve heights
-        heights = road_info["heights"]
-        # Calculate the slopes  with the distances and heights
-        slopes = self.calculate_slopes(distances, heights)
+        heights, max_speeds, slopes = [], [], []
 
-        # Retrieve maximum speed
-        max_speeds = self._nominatim.retrieve_road_info(
-            route_extended_coordinates)["maxspeed"]
+        for road_information_provider in self._road_information_providers:
+            road_info = road_information_provider.retrieve_road_info(route_extended_coordinates)
+            # Retrieve heights to calculate slopes
+            if 'heights' in road_info:
+                heights = road_info["heights"]
+                slopes = self.calculate_slopes(distances, heights)
+            # If maximum speed on road information calculate segmented route
+            if 'maxspeed' in road_info:
+                max_speeds = road_info["maxspeed"]
 
         # Retrieve indices for segmented route
         # This method is commented as it removes too much points
         indices = self.segment_route(max_speeds, slopes)
-        # Define the indices as the number of points (e.g. max speeds length)
-        # indices = range(len(max_speeds))
 
         # Calculate sum of distances of the non-selected nodes
         sum_distances_segment = [sum(distances[i:j]) for i, j in zip(indices,
@@ -72,13 +136,18 @@ class RouteProcessor:
                                                                 indices[1:])]
 
         # return the segments (also its representation), heights, maximum speeds, distances and slopes
-        return {'segments': [route_extended_coordinates[i] for i in indices],
-                'segments_representation': [route_extended_coordinates[i] for i in range(len(max_speeds))],
-                'heights': [heights[i] for i in indices],
-                'max_speed': [max_speeds[i] for i in indices][:-1],
-                # Last item of max speed removed as it is not used
-                'distances': sum_distances_segment,
-                'slopes': mean_slope_segment}
+        segment_info = {'segments': [route_extended_coordinates[i] for i in indices],
+                        'segments_representation': [route_extended_coordinates[i] for i in range(len(max_speeds))],
+                        'heights': [heights[i] for i in indices],
+                        'max_speed': [max_speeds[i] for i in indices][:-1],
+                        # Last item of max speed removed as it is not used
+                        'distances': sum_distances_segment,
+                        'slopes': mean_slope_segment}
+        if router_distance:
+            segment_info['router_distance'] = router_distance
+        if router_duration:
+            segment_info['router_duration'] = router_duration
+        return segment_info
 
     def segment_route(self, max_speeds: list, slopes: list) -> list:
         """
@@ -173,55 +242,6 @@ class RouteProcessor:
         df['slope'] = df['slope'].clip(lower=-self._slope_threshold, upper=self._slope_threshold)
 
         return list(df['slope'])
-
-    def calculate_extended_coords_and_distances(self, route_coordinates: list):
-        """
-        Calculate the extended route (with additional coordinates) along with its distances between nodes
-
-        :param route_coordinates: input route coordinates
-        :type route_coordinates: list
-        :return: list of coordinates of extended route and its distances
-        """
-
-        # Create list for extended nodes and distances
-        route_extended_coordinates, distances = [], []
-
-        # Define destination as None
-        destination = None
-
-        # Iterate over the nodes in packs of two
-        for source, destination in zip(route_coordinates, route_coordinates[1:]):
-            # Calculate distance between source and destination
-            # distance = gd((source.lon, source.lat), (destination.lon, destination.lat)).meters
-
-            # Calculate distance between source and destination
-            distance = self.calculate_distance(source.lat, source.lon, destination.lat, destination.lon)
-
-            # Add source node to extended route
-            route_extended_coordinates.append(source)
-
-            # Append the distance
-            distances.append(distance)
-
-        # Add destination node outside the loop as it is the last element
-        route_extended_coordinates.append(destination)
-
-        return route_extended_coordinates, distances
-
-    def calculate_distance(self, coord1_lat, coord1_lon, coord2_lat, coord2_lon):
-        # Parse degrees to radians
-        lon1, lat1, lon2, lat2 = map(math.radians, [coord1_lon, coord1_lat, coord2_lon, coord2_lat])
-
-        # Haversine formula
-        # Calculate difference of coordinates
-        lon_diff = lon2 - lon1
-        lat_diff = lat2 - lat1
-        # Calculate a value
-        a = math.sin(lat_diff / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(lon_diff / 2) ** 2
-        # Calculate C value
-        c = 2 * math.asin(math.sqrt(a))
-
-        return c * EARTH_RADIUS
 
     def calculate_intermediate_coords(self, source: Coords, destination: Coords, distance: float):
         """

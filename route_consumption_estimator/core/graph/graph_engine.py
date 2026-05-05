@@ -1,8 +1,21 @@
-import networkx as nx
+import uuid
 
-from route_consumption_estimator.core.constants import DEFAULT_WAYS_VALUES, DELTA_S_MIN_INTERVAL_DISTANCE, DELTA_S, \
-    DELTA_S_MAX, DELTA_S_MAX_INTERVAL_DISTANCE
-from route_consumption_estimator.core.graph.models import Coords, Node, Segment
+import networkx as nx
+from flask import current_app
+
+from route_consumption_estimator.domain import Coords, Node, Segment
+
+# Default values for ways info and maximum speeds
+DEFAULT_WAYS_VALUES = {
+    'distance': 0.0,
+    'slope': 0.0,
+    'max_speed': 50.0,
+    'lanes': 1,
+    'highway': '',
+    'name': '',
+    'surface': '',
+    'congestion': None
+}
 
 
 class GraphEngine:
@@ -63,10 +76,7 @@ class GraphEngine:
         :return: None
         """
         # Store relation
-        self._graph.add_edge(source_id, destination_id, slope=segment_info.slope, distance=segment_info.distance,
-                             congestion=segment_info.congestion, max_speed=segment_info.max_speed,
-                             lanes=segment_info.lanes, highway=segment_info.highway, name=segment_info.name,
-                             surface=segment_info.surface, way_id=segment_info.way_id)
+        self._graph.add_edge(source_id, destination_id, **{'max_speed': segment_info.max_speed} | segment_info.extra)
 
     def store_routes_graph(self):
         """
@@ -104,10 +114,13 @@ class GraphEngine:
                 self.create_node(node_info=source_node)
                 self.create_node(node_info=destination_node)
 
-                # Create the segment info
-                segment_info = Segment(slope=route['slopes'][idx], distance=route['distances'][idx],
-                                       max_speed=route['max_speed'][idx], congestion=None, lanes=0, highway="",
-                                       name="", surface="", way_id="")
+                # Create the segment info with additional information
+                extra_info = {
+                    "slope": route['slopes'][idx],
+                    "distance": route['distances'][idx],
+                    "lanes": 0
+                }
+                segment_info = Segment(max_speed=route['max_speed'][idx], segment_id=uuid.uuid4(), extra=extra_info)
                 # Store the relation between them
                 self.create_relation(source_id, destination_id, segment_info)
 
@@ -175,7 +188,7 @@ class GraphEngine:
             # Get those attributes that are empty or with default values and update from previous
             for key, value in relation.items():
                 # Way ID, distance, congestion and slope are not copied
-                if key != 'way_id' and key != 'congestion' and key != 'distance' and key != 'slope':
+                if key != 'segment_id' and key != 'congestion' and key != 'distance' and key != 'slope':
                     relation[key] = last_relation[key]
                 else:
                     # Remain the same value as previous
@@ -201,7 +214,7 @@ class GraphEngine:
         # Get those attributes that are empty or with default values and update from previous
         for key, value in relation.items():
             # Way ID not processed and congestion will be processed afterwards
-            if key != 'way_id' and key != 'congestion':
+            if key != 'segment_id' and key != 'congestion':
                 if value == DEFAULT_WAYS_VALUES[key]:
                     if key in previous_relation:
                         relation[key] = previous_relation[key]
@@ -220,17 +233,19 @@ class GraphEngine:
 
         :return:
         """
-        delta_s = DELTA_S
+        current_app_config = current_app.config["APP_CONFIG"].system
+        delta_s = current_app_config.delta_s
         # If it is greater than the first threshold
-        if avg_route_distance > DELTA_S_MIN_INTERVAL_DISTANCE:
+        if avg_route_distance > current_app_config.delta_s_min_interval_distance:
             # Calculate the specified delta_s value (must be integer)
-            delta_s = int(DELTA_S_MAX * avg_route_distance / DELTA_S_MAX_INTERVAL_DISTANCE)
+            delta_s = int(current_app_config.delta_s_max * avg_route_distance /
+                          current_app_config.delta_s_max_interval_distance)
 
         routes_information = []
         # Get source and target (there should be only one of each)
         sources = [x for x in self._graph.nodes() if self._graph.in_degree(x) == 0]
         targets = [x for x in self._graph.nodes() if self._graph.out_degree(x) == 0]
-
+        # Key error max_speed
         # Iterate all possible simple paths between source and destination
         simple_paths = nx.all_simple_paths(self._graph, source=sources[0], target=targets[0])
         # Get the required attributes (max_speed, slope and distance)

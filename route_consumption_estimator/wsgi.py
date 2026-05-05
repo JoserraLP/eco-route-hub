@@ -3,7 +3,7 @@ import flask_monitoringdashboard as dashboard
 from route_consumption_estimator import create_app
 
 app = create_app()
-# dashboard.config.init_from(file='../cfg/dashboard.cfg')
+# dashboard.config.init_from(file='../dashboard/dashboard.dashboard')
 # dashboard.bind(app)
 
 if __name__ == "__main__":

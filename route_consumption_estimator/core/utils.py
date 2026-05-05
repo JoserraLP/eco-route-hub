@@ -1,4 +1,4 @@
-from route_consumption_estimator.core.constants import SMOOTHING_FACTOR_ALPHA
+from flask import current_app
 
 
 def calculate_distances(speeds, timestamps):
@@ -41,7 +41,10 @@ def calculate_slopes(heights, speeds, times):
     return slopes
 
 
-def smoothing_process(input_list: list, alpha: float = SMOOTHING_FACTOR_ALPHA):
+def smoothing_process(input_list: list, alpha: float = None):
+    current_app_config = current_app.config["APP_CONFIG"].system
+    alpha = alpha if alpha else current_app_config.smoothing_factor_alpha
+
     assert 0 <= alpha <= 1, "Error value, alpha should be between 0 and 1"
 
     # Smoothing function
