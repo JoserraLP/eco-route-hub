@@ -1,46 +1,72 @@
+"""
+Route segmentation provider interface.
 
-from abc import ABC
+Defines the abstract base contract for segmenting continuous route coordinates 
+and road telemetry into discrete homogeneous segments based on attribute variations 
+(e.g., speed limits, slopes, surface types).
+"""
 
-from route_consumption_estimator.domain import RouteModel, VehicleModel
+from abc import ABC, abstractmethod
+from typing import Any, Dict, List, Optional
+
+from route_consumption_estimator.domain.graph_models import Coords
 
 
 class RouteSegmentationProvider(ABC):
+    """
+    Abstract Base Class for route segmentation provider implementations.
 
-    def __init__(self, config: dict = None):
-        self._indices = []
-        self._config = config
+    Attributes:
+        config (Dict[str, Any]): Configuration settings and segmentation thresholds.
+        indices (List[int]): Selected waypoint indices marking segment boundaries.
+    """
 
-    def segment_route(self, attributes_info: dict) -> list:
+    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
+        self.config: Dict[str, Any] = config or {}
+        self.indices: List[int] = []
+
+    @abstractmethod
+    def segment_route(self, attributes_info: Dict[str, Any]) -> List[int]:
         """
-        Segment the route by selecting only those coordinates (by index) where there is a difference based on arguments
+        Segment a route by identifying key waypoint indices where attribute changes occur.
 
-        :param attributes_info: attributes info per pair of coordinates
-        :type attributes_info: dict
+        Args:
+            attributes_info (Dict[str, Any]): Road and ambient attribute data 
+                mapped across route points/sections.
 
-        :return: list with the indices of segmented route
-        """
-        pass
-
-    def retrieve_segmented_route_information(self, route_coordinates: list, attributes_info: dict):
-        """
-        Retrieve all the information related to the segmented route
-
-
-        :param route_coordinates: route coordinates
-        :type route_coordinates: list
-        :param attributes_info: attributes info per pair of coordinates
-        :type attributes_info: dict
-
-        :return: dict with segmented route information
+            Returns:
+                List[int]: List of coordinate indices where new segments begin.
         """
         pass
 
-    @property
-    def indices(self):
-        """Get the value of indices."""
-        return self._indices
+    @abstractmethod
+    def retrieve_segmented_route_information(
+        self, route_coordinates: List[Coords], attributes_info: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Retrieve aggregated telemetry and geometric information structured by segments.
 
-    @indices.setter
-    def indices(self, value):
-        """Set the value of indices."""
-        self._indices = value
+        Args:
+            route_coordinates (List[Coords]): Full sequence of route coordinates.
+            attributes_info (Dict[str, Any]): Detailed attribute data along the route.
+
+        Returns:
+            Dict[str, Any]: Segmented route profile data including aggregated features per segment.
+        """
+        pass
+
+    @abstractmethod
+    def calculate_slopes(
+        self, distances: List[float], heights: List[float]
+    ) -> List[float]:
+        """
+        Calculate road slopes (%) based on segment distances and coordinate elevations.
+
+        Args:
+            distances (List[float]): Distance increments between consecutive waypoints.
+            heights (List[float]): Waypoint elevation profiles in meters.
+
+        Returns:
+            List[float]: Calculated road slopes clipped within physics thresholds.
+        """
+        pass
