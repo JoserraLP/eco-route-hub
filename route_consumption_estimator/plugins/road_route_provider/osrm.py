@@ -35,9 +35,9 @@ class OSRM(RoadRouteProvider):
         # Perform query
         # If there is a timeout, then return an empty list
         try:
-            response = requests.get(self._endpoint +
+            response = requests.get(self.endpoint +
                                     ";".join(f"{coord.lon},{coord.lat}" for coord in coords),
-                                    params=self._params)
+                                    params=self.params)
 
             # Create a list for the preprocessed routes
             preprocessed_routes = []

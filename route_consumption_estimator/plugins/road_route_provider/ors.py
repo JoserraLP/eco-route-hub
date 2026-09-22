@@ -34,8 +34,8 @@ class OpenRouteService(RoadRouteProvider):
         # If there is a timeout, then return an empty list
         try:
             # Perform query using params if they exists
-            if self._params:
-                routes = directions(self._client, coords, alternative_routes=self._params)['routes']
+            if self.params:
+                routes = directions(self._client, coords, alternative_routes=self.params)['routes']
             else:
                 routes = directions(self._client, coords)['routes']
 

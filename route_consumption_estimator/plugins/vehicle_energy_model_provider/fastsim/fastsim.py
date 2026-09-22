@@ -338,8 +338,8 @@ class FastSimEnergyModel(VehicleEnergyModelProvider):
     ):
         super().__init__(route, vehicle)
         self._speed_profile = SpeedProfile(
-            route=self._route,
-            vehicle=self._vehicle,
+            route=self.route,
+            vehicle=self.vehicle,
         )
         self.dt = 1.0
         self.minimum_moving_speed_mps = 0.5
@@ -353,8 +353,8 @@ class FastSimEnergyModel(VehicleEnergyModelProvider):
     ):
         super().load_route_and_vehicle(route, vehicle)
         self._speed_profile = SpeedProfile(
-            route=self._route,
-            vehicle=self._vehicle,
+            route=self.route,
+            vehicle=self.vehicle,
         )
         self._results = None
 
@@ -498,7 +498,7 @@ class FastSimEnergyModel(VehicleEnergyModelProvider):
 
     def perform_power_energy_consumption_calculation(self) -> Dict[str, Any]:
         cyc = self._build_cycle()
-        veh = convert_vehicle_to_fastsim(self._vehicle)
+        veh = convert_vehicle_to_fastsim(self.vehicle)
 
         if self.debug:
             inspect_vehicle(veh)
@@ -603,7 +603,7 @@ class FastSimEnergyModel(VehicleEnergyModelProvider):
         if time_h <= 0.0:
             raise ValueError(f"Tiempo FASTSim inválido: {time_s} s.")
 
-        motor_type = _vehicle_motor_type(self._vehicle)
+        motor_type = _vehicle_motor_type(self.vehicle)
         is_ev = motor_type in {"electric", "ev"}
 
         if is_ev:

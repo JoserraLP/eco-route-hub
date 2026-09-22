@@ -18,7 +18,7 @@ class Nominatim(RoadInfrastructureInformationProvider):
 
     def __init__(self, config: Dict[str, Any]):
         super().__init__(config.get("endpoint", NOMINATIM_API_URL))
-        self._road_attributes = config.get("road_attributes", NOMINATIM_ROAD_ATTRIBUTES)
+        self.road_attributes = config.get("road_attributes", NOMINATIM_ROAD_ATTRIBUTES)
 
     def retrieve_road_info(self, route_coordinates: list[Coords]) -> list:
         """
@@ -30,14 +30,14 @@ class Nominatim(RoadInfrastructureInformationProvider):
         :rtype: list
         """
 
-        self._road_information = {
+        self.road_information = {
                                      "coordinates": route_coordinates,
                                      "additional_info": []
-                                 } | {str(attribute): [] for attribute in self._road_attributes}
+                                 } | {str(attribute): [] for attribute in self.road_attributes}
 
         for coordinates in route_coordinates:
             # Append the coordinates to the query
-            request_str = self._endpoint + "lat=" + str(coordinates.lat) + "&lon=" + \
+            request_str = self.endpoint + "lat=" + str(coordinates.lat) + "&lon=" + \
                           str(coordinates.lon) + NOMINATIM_ADD_PARAMS
 
             # Perform request and parse to json
@@ -46,32 +46,32 @@ class Nominatim(RoadInfrastructureInformationProvider):
             if 'extratags' in results:
                 extratags = results['extratags']
 
-                for road_attribute in self._road_attributes:
+                for road_attribute in self.road_attributes:
                     # Append value or -1 by default
-                    self._road_information[road_attribute].append(int(extratags.pop(road_attribute).split("|")[0])
+                    self.road_information[road_attribute].append(int(extratags.pop(road_attribute).split("|")[0])
                                                                   if road_attribute in extratags else -1)
 
                 # Append additional info
-                self._road_information["additional_info"].append(results['extratags'])
+                self.road_information["additional_info"].append(results['extratags'])
             else:
                 # Append -1 as there is no information
-                for road_attribute in self._road_attributes:
-                    self._road_information[road_attribute] = -1
+                for road_attribute in self.road_attributes:
+                    self.road_information[road_attribute] = -1
 
         # Process and extend maximum speed info
-        if "maxspeed" in self._road_attributes:
-            for i in range(len(self._road_information["maxspeed"]) - 2):
+        if "maxspeed" in self.road_attributes:
+            for i in range(len(self.road_information["maxspeed"]) - 2):
                 # Get current and next speed
-                cur_max_speed = self._road_information["maxspeed"][i]
-                next_max_speed = self._road_information["maxspeed"][i+1]
+                cur_max_speed = self.road_information["maxspeed"][i]
+                next_max_speed = self.road_information["maxspeed"][i+1]
                 if cur_max_speed == -1:
                     # This value is default
-                    self._road_information["maxspeed"][i] = DEFAULT_MAX_SPEED
+                    self.road_information["maxspeed"][i] = DEFAULT_MAX_SPEED
                 # Check if default value to extend it from previous value
                 if next_max_speed == -1:
-                    self._road_information["maxspeed"][i + 1] = cur_max_speed
+                    self.road_information["maxspeed"][i + 1] = cur_max_speed
 
-        return self._road_information
+        return self.road_information
 
     def retrieve_road_info_by_polyline(self, encoded_polyline: str) -> dict:
         performed_route_coords = polyline.decode(encoded_polyline, DEFAULT_POLYLINE_PRECISION)

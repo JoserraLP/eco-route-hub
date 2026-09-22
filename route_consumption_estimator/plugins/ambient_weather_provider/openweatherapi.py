@@ -105,14 +105,14 @@ class OpenWeatherAPI(AmbientWeatherInformationProvider):
         :return: list with associated extra road info
         :rtype: list
         """
-        self._ambient_weather_information = {
+        self.ambient_weather_information = {
                                      "coordinates": route_coordinates,
         }
 
         if 'temp' in self._ambient_weather_attributes:
-            self._ambient_weather_information.update({"temp": fetch_temperatures(coordinates=route_coordinates)})
+            self.ambient_weather_information.update({"temp": fetch_temperatures(coordinates=route_coordinates)})
 
-        return self._ambient_weather_information
+        return self.ambient_weather_information
 
     def retrieve_ambient_weather_info_by_polyline(self, encoded_polyline: str) -> dict:
         pass

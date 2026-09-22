@@ -31,7 +31,7 @@ class OpenTopoData(RoadInfrastructureInformationProvider):
 
     def __init__(self, config: Dict[str, Any]):
         super().__init__(config.get("endpoint", HEIGHT_API_URL))
-        self._road_attributes = config.get("road_attributes", OPENTOPODATA_ROAD_ATTRIBUTES)
+        self.road_attributes = config.get("road_attributes", OPENTOPODATA_ROAD_ATTRIBUTES)
 
     def retrieve_road_info(self, route_coordinates: list[Coords]) -> list:
         """
@@ -48,7 +48,7 @@ class OpenTopoData(RoadInfrastructureInformationProvider):
         # Iterate over the list coordinates
         for inner_list in split_coordinates:
             # Append the coordinates to the query
-            request_str = self._endpoint + '|'.join(f'{item.lat},{item.lon}' for item in inner_list)
+            request_str = self.endpoint + '|'.join(f'{item.lat},{item.lon}' for item in inner_list)
 
             # Perform request and parse to json
             results = requests.get(url=request_str).json()
@@ -56,12 +56,12 @@ class OpenTopoData(RoadInfrastructureInformationProvider):
             # Append heights results to list
             heights += [result['elevation'] for result in results['results']]
 
-        self._road_information = {
+        self.road_information = {
             "coordinates": route_coordinates,
             "heights": heights
         }
 
-        return self._road_information
+        return self.road_information
 
     def retrieve_road_info_by_polyline(self, encoded_polyline: str):
         # Append the encoded polyline to the query
@@ -73,7 +73,7 @@ class OpenTopoData(RoadInfrastructureInformationProvider):
         # Add heights results
         heights = [result['elevation'] for result in results['results']]
 
-        self._road_information = {
+        self.road_information = {
             "coordinates": polyline.decode(encoded_polyline, DEFAULT_POLYLINE_PRECISION),
             "heights": heights
         }

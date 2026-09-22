@@ -13,13 +13,13 @@ class GretaEnergyModel(VehicleEnergyModelProvider):
     def __init__(self, route: RouteModel = None, vehicle: VehicleModel = None):
         super().__init__(route, vehicle)
         # Initialize vehicle movement object
-        self._speed_profile = SpeedProfile(route=self._route, vehicle=self._vehicle)
+        self._speed_profile = SpeedProfile(route=self.route, vehicle=self.vehicle)
         self._power_estimator = None
 
     def load_route_and_vehicle(self, route: RouteModel, vehicle: VehicleModel):
         super().__init__(route, vehicle)
         # Initialize vehicle movement object
-        self._speed_profile = SpeedProfile(route=self._route, vehicle=self._vehicle)
+        self._speed_profile = SpeedProfile(route=self.route, vehicle=self.vehicle)
         self._power_estimator = None
 
     def perform_speed_profile_processing(self):
@@ -42,10 +42,10 @@ class GretaEnergyModel(VehicleEnergyModelProvider):
         # Initialize power estimator
         self._power_estimator = PowerEnergyEstimator(self._speed_profile)
 
-        self._power_estimator.estimate_power_consumption(electric=self._vehicle.motor_type == 'ELECTRIC')
+        self._power_estimator.estimate_power_consumption(electric=self.vehicle.motor_type == 'ELECTRIC')
 
     def retrieve_estimations(self):
-        distance_m = float(self._route.total_distance)
+        distance_m = float(self.route.total_distance)
         time_s = float(self._speed_profile.time[-1])
 
         if distance_m <= 0.0:
@@ -70,7 +70,7 @@ class GretaEnergyModel(VehicleEnergyModelProvider):
             )
 
         motor_type = str(
-            self._vehicle.motor_type
+            self.vehicle.motor_type
         ).strip().lower()
 
         is_ev = motor_type in {

@@ -43,12 +43,12 @@ class GraphHopper(RoadRouteProvider):
         common_source = coords[0]
         common_target = coords[-1]
         # Set the coordinates as the params
-        self._params['point'] = [f"{coord.lat},{coord.lon}" for coord in coords]
+        self.params['point'] = [f"{coord.lat},{coord.lon}" for coord in coords]
 
         # If there is a timeout, then return an empty list
         try:
             # Perform query
-            response = requests.get(self._endpoint, params=self._params)
+            response = requests.get(self.endpoint, params=self.params)
 
             # Create a list for the preprocessed routes
             preprocessed_routes = []
