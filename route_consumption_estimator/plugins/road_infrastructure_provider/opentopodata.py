@@ -3,7 +3,7 @@ from typing import Dict, Any
 import polyline
 import requests
 
-from route_consumption_estimator.domain import Coords
+from route_consumption_estimator.domain.graph_models import Coords
 from route_consumption_estimator.interfaces import RoadInfrastructureInformationProvider
 
 HEIGHT_API_URL = 'http://localhost:5000/v1/srtm30mspain?locations='

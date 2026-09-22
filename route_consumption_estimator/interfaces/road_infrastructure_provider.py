@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from route_consumption_estimator.domain import Coords
+from route_consumption_estimator.domain.graph_models import Coords
 
 
 class RoadInfrastructureInformationProvider(ABC):

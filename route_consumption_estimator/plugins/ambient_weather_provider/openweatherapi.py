@@ -5,7 +5,7 @@ from typing import Dict, Any, List, Optional
 
 import aiohttp
 
-from route_consumption_estimator.domain import Coords
+from route_consumption_estimator.domain.graph_models import Coords
 from route_consumption_estimator.interfaces import AmbientWeatherInformationProvider
 
 OPENWEATHER_API_URL = "https://api.openweathermap.org/data/2.5/weather"

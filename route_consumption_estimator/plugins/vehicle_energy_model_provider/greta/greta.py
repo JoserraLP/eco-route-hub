@@ -1,4 +1,5 @@
-from route_consumption_estimator.domain import RouteModel, VehicleModel
+from route_consumption_estimator.domain.route_model import RouteModel
+from route_consumption_estimator.domain.vehicle_model import VehicleModel
 from route_consumption_estimator.plugins.vehicle_energy_model_provider.greta.power_energy import PowerEnergyEstimator
 from route_consumption_estimator.plugins.speed_profile_provider.speed_profile import SpeedProfile
 from route_consumption_estimator.interfaces import VehicleEnergyModelProvider

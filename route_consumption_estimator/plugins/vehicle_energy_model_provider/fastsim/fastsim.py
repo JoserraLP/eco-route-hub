@@ -3,7 +3,8 @@ from typing import Any, Dict, Optional, Tuple
 import numpy as np
 from fastsim import cycle, simdrive, vehicle as fastsim_vehicle
 
-from route_consumption_estimator.domain import RouteModel, VehicleModel
+from route_consumption_estimator.domain.route_model import RouteModel
+from route_consumption_estimator.domain.vehicle_model import VehicleModel
 from route_consumption_estimator.interfaces import VehicleEnergyModelProvider
 from route_consumption_estimator.plugins.speed_profile_provider.speed_profile import SpeedProfile
 

@@ -1,33 +1,40 @@
-from dataclasses import dataclass
+"""
+Data Transfer Objects (DTOs) for application domain boundaries.
+
+Defines decoupled in-memory representations for entities transferred between 
+API routes, domain services, and external calculation plugins.
+"""
+
+from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
+from typing import Optional
 
 from route_consumption_estimator.domain.constants import GRAVITY
+from route_consumption_estimator.domain.enums import (
+    DrivingBehaviorEnum,
+    FeatureTopicEnum,
+    MotorTypeEnum,
+    RouteTypeEnum,
+)
 
 
 @dataclass
 class UserDTO:
-    user_id: int
+    """In-memory representation of user profile data."""
     name: str
     email: str
     password: str
-    birth_date: str
-    gender: str
-    driving_license_year: str
-
-
-class MotorTypeEnumDTO(Enum):
-    ELECTRIC = 1
-    DIESEL = 2
-    GASOLINE = 3
-    HYBRID = 4
+    user_id: Optional[int] = None
+    birth_date: Optional[str] = None
+    gender: Optional[str] = None
+    driving_license_year: Optional[str] = None
 
 
 @dataclass
 class VehicleDTO:
-    vehicle_id: int
+    """In-memory representation of vehicle physical parameters."""
     name: str
-    motor_type: MotorTypeEnumDTO
+    motor_type: MotorTypeEnum
     unladen_veh_mass: float
     p_max_kw: float
     liters_conversion: float
@@ -35,40 +42,36 @@ class VehicleDTO:
     A: float
     B: float
     C: float
-    url: str
-    image_url: str
+    vehicle_id: Optional[int] = None
+    url: Optional[str] = ""
+    image_url: Optional[str] = ""
 
-    def recalculate_a(self, additional_mass: int):
-        self.A = float(self.resistance_factor) * (float(self.unladen_veh_mass) + additional_mass) * GRAVITY
+    def recalculate_a(self, additional_mass: float) -> None:
+        """Recalculate resistance parameter A with added passenger/payload mass."""
+        self.A = float(self.resistance_factor) * (float(self.unladen_veh_mass) + float(additional_mass)) * GRAVITY
 
 
 @dataclass
 class UserVehicleDTO:
-    id: int
+    """Association object linking a user to a vehicle profile."""
     user_id: int
     vehicle_id: int
-    age: int
-    km_user: int
-    is_fav: int
-
-
-class RouteTypeEnumDTO(Enum):
-    FASTEST: 1
-    SHORTEST: 2
-    ECO: 3
+    id: Optional[int] = None
+    age: Optional[int] = None
+    km_used: Optional[int] = None  # Fixed typo: km_user -> km_used
+    is_fav: int = 0
 
 
 @dataclass
 class UserRouteDTO:
-    id: int
+    """Telemetry data record for route calculation queries and actual trips."""
     user_id: int
-    user_vehicle_id: int
+    user_vehicle_id: Optional[int]
     additional_mass: int
     source_coords: str
     destination_coords: str
-    record_date: datetime
     selected_route_polyline: str
-    selected_route_type: RouteTypeEnumDTO
+    selected_route_type: RouteTypeEnum
     selected_route_consumption: float
     selected_route_time: int
     selected_route_distance: int
@@ -79,43 +82,39 @@ class UserRouteDTO:
     performed_route_estimated_consumption: float
     performed_route_estimated_time: int
     performed_route_estimated_distance: int
-    num_stops_km: int
-    speed_variation_num: int
-    driving_aggressiveness: int
+    id: Optional[int] = None
+    record_date: Optional[datetime] = None
+    num_stops_km: int = 0
+    speed_variation_num: int = 0
+    driving_aggressiveness: int = 0
+    driving_behavior: Optional[DrivingBehaviorEnum] = None
 
 
 @dataclass
 class UserStatsDTO:
+    """Summary metrics of user eco-driving savings."""
     user_id: int
-    consumption_saving: float
-    eco_time: float
-    eco_distance: float
-    eco_routes_num: int
-    drive_rating: float
+    consumption_saving: float = 0.0
+    eco_time: float = 0.0
+    eco_distance: float = 0.0
+    eco_routes_num: int = 0
+    drive_rating: float = 0.0
 
 
 @dataclass
 class AppReviewDTO:
-    app_review_id: int
+    """Overall user review score and feedback."""
     user_id: int
     global_comments: str
     global_score: float
-
-
-class FeatureTopicEnumDTO(Enum):
-    ACCESABILITY: 1
-    RESPONSETIME: 2
-    CONFIGURABILITY: 3
-    USABILITY: 4
-    TRUSTABILITY: 5
-    ROBUSTNESS: 6
-    UTILITY: 7
+    app_review_id: Optional[int] = None
 
 
 @dataclass
 class FeatureReviewDTO:
-    id: int
+    """Feature-specific evaluation review entry."""
     app_review_id: int
-    topic: FeatureTopicEnumDTO
+    topic: FeatureTopicEnum
     score: float
     comments: str
+    id: Optional[int] = None

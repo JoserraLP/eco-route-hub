@@ -1,5 +1,7 @@
-from route_consumption_estimator.domain import VehicleDAO, VehicleModel, VehicleDTO
+from route_consumption_estimator.domain.dao_models import VehicleDAO
+from route_consumption_estimator.domain.dto_models import VehicleDTO
 from route_consumption_estimator.domain.parsers import vehicle_dao_to_dto
+from route_consumption_estimator.domain.vehicle_model import VehicleModel
 from route_consumption_estimator.extensions import db
 from route_consumption_estimator.interfaces import VehicleInformationProvider
 
@@ -18,7 +20,7 @@ class VehicleInformationRepository(VehicleInformationProvider):
             vehicle.recalculate_a(int(additional_mass))
 
         # Create a vehicle using the simulator model
-        return VehicleModel(total_veh_mass=int(vehicle.unladen_veh_mass) + int(additional_mass),
+        return VehicleModel(total_mass=int(vehicle.unladen_veh_mass) + int(additional_mass),
                             liters_conversion=float(vehicle.liters_conversion),
                             p_max_kw=float(vehicle.p_max_kw),
                             A=float(vehicle.A),

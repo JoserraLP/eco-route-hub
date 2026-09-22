@@ -1,6 +1,6 @@
 from abc import ABC
 
-from route_consumption_estimator.domain import DrivingBehaviorEnum
+from route_consumption_estimator.domain.enums import DrivingBehaviorEnum
 
 
 class DrivingBehaviorProvider(ABC):

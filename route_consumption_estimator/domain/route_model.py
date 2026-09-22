@@ -1,48 +1,43 @@
+"""
+Domain route model representation for consumption estimation pipelines.
+
+Defines the RouteModel structure used by calculation engines and providers 
+to evaluate distance-based route profiles and additional path metadata.
+"""
+
+from dataclasses import dataclass, field
+from typing import Any, Dict, List
+
+
+@dataclass
 class RouteModel:
     """
-    In this part, the data that make up the path to be analyzed are entered.
-    The path is defined by a succession of sections. Each section is defined by the following matrices:
+    Analytical route entity represented by cumulative distance markers.
 
-    **segment_start_point**: Variable indicating the starting point of each leg, measured in meters from the origin.
-
-    **additional_information**: dict with additional route information
+    Attributes:
+        segment_start_point (List[float]): Vector containing the start position 
+            of each segment, measured in meters from the origin (e.g., [0.0, 150.0, 400.0]).
+        additional_info (Dict[str, Any]): Dictionary containing route telemetry and metadata 
+            (e.g., speed profiles, elevation/slopes, weather, traffic data).
+        total_distance (float): Total length of the route in meters. Automatically 
+            computed from segment_start_point if not explicitly provided.
     """
 
-    def __init__(self, segment_start_point: list, additional_info: dict):
-        # The path definition is characterized by the distance to the origin of the start of each segment, measured
-        # in meters (m).
-        self._segment_start_point = segment_start_point  # Vector of the start of the segment
+    segment_start_point: List[float] = field(default_factory=list)
+    additional_info: Dict[str, Any] = field(default_factory=dict)
+    total_distance: float = 0.0
 
-        self._total_distance = max(segment_start_point)  # Total length of the route
+    def __post_init__(self) -> None:
+        """Calculate total_distance defensively from segment start points if zero."""
+        if not self.total_distance and self.segment_start_point:
+            self.total_distance = float(max(self.segment_start_point))
 
-        self._additional_info = additional_info
+    def update_segment_start_points(self, new_points: List[float]) -> None:
+        """
+        Update the segment start points vector and automatically recalculate total_distance.
 
-    @property
-    def segment_start_point(self):
-        """Get the value of segment_start_point."""
-        return self._segment_start_point
-
-    @segment_start_point.setter
-    def segment_start_point(self, value):
-        """Set the value of segment_start_point."""
-        self._segment_start_point = value
-
-    @property
-    def total_distance(self):
-        """Get the value of total_distance."""
-        return self._total_distance
-
-    @total_distance.setter
-    def total_distance(self, value):
-        """Set the value of total_distance."""
-        self._total_distance = value
-
-    @property
-    def additional_info(self):
-        """Get the value of additional_info."""
-        return self._additional_info
-
-    @additional_info.setter
-    def additional_info(self, value):
-        """Set the value of additional_info."""
-        self._additional_info = value
+        Args:
+            new_points (List[float]): New list of cumulative segment start distances.
+        """
+        self.segment_start_point = new_points
+        self.total_distance = float(max(new_points)) if new_points else 0.0

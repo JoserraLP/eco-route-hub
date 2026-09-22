@@ -4,7 +4,7 @@ import requests
 from openrouteservice import Client, convert
 from openrouteservice.directions import directions
 
-from route_consumption_estimator.domain import Coords
+from route_consumption_estimator.domain.graph_models import Coords
 from route_consumption_estimator.interfaces import RoadRouteProvider
 
 ORS_ENDPOINT = "http://localhost:8081/ors"

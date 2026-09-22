@@ -1,6 +1,7 @@
 from abc import ABC
 
-from route_consumption_estimator.domain import RouteModel, VehicleModel
+from route_consumption_estimator.domain.route_model import RouteModel
+from route_consumption_estimator.domain.vehicle_model import VehicleModel
 
 
 class VehicleEnergyModelProvider(ABC):

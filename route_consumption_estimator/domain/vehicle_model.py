@@ -1,177 +1,69 @@
+"""
+Physical vehicle domain model for consumption estimation algorithms.
+
+Defines mechanical, aerodynamic, powertrain, and dynamic limits 
+used by physics calculation engines.
+"""
+
+from dataclasses import dataclass
+from typing import Union
+
+from route_consumption_estimator.domain.enums import MotorTypeEnum
+
+
+@dataclass
 class VehicleModel:
     """
-    Vehicle model information
+    Physical vehicle entity representation used in consumption simulations.
+
+    Attributes:
+        total_mass (float): Total vehicle mass in kg (unladen mass + payload/passengers).
+        p_max_kw (float): Maximum engine power output in kW.
+        liters_conversion (float): Energy conversion factor to equivalent fuel/energy units.
+        A (float): Coastdown resistance coefficient A (rolling resistance in N).
+        B (float): Coastdown resistance coefficient B (viscous resistance in N/(km/h)).
+        C (float): Coastdown resistance coefficient C (aerodynamic drag in N/(km/h)²).
+        motor_type (Union[MotorTypeEnum, str]): Powertrain classification.
+        gamma (float): Rotational mass factor (accounts for rotating inertia, default 1.05).
+        auxiliar_consumption_l_h (float): Auxiliary equipment power/fuel consumption rate (L/h).
+        v1_km_h (float): First speed threshold for dynamic acceleration limits in km/h.
+        v2_km_h (float): Second speed threshold for dynamic acceleration limits in km/h.
+        ax_trac1 (float): Max tractive acceleration under v1_km_h (m/s²).
+        ax_trac2 (float): Max tractive acceleration between v1_km_h and v2_km_h (m/s²).
+        ax_trac3 (float): Max tractive acceleration above v2_km_h (m/s²).
+        ax_brake (float): Max braking deceleration limit in m/s² (negative value).
     """
 
-    def __init__(self, total_veh_mass: int, p_max_kw: float, liters_conversion: float,
-                 A: float, B: float, C: float, motor_type: str, gamma: float = 1.05,
-                 auxiliar_consumption_l_h: float = 0):
-        self._total_mass = total_veh_mass
+    total_mass: float
+    p_max_kw: float
+    liters_conversion: float
+    A: float
+    B: float
+    C: float
+    motor_type: Union[MotorTypeEnum, str]
+    gamma: float = 1.05
+    auxiliar_consumption_l_h: float = 0.0
 
-        self._gamma = gamma  # Majority factor of rotating masses
+    # Driving dynamics criteria parameters
+    v1_km_h: float = 50.0
+    v2_km_h: float = 100.0
+    ax_trac1: float = 2.0
+    ax_trac2: float = 1.0
+    ax_trac3: float = 0.5
+    ax_brake: float = -2.0
 
-        self._motor_type = motor_type
+    def get_max_acceleration(self, speed_km_h: float) -> float:
+        """
+        Get maximum tractive acceleration limit based on current vehicle speed range.
 
-        self._liters_conversion = liters_conversion
+        Args:
+            speed_km_h (float): Current vehicle speed in km/h.
 
-        self._A = A
-        self._B = B
-        self._C = C
-
-        # If other more precise values are available, they can be entered directly for the calculation of the
-        # resistances. passive, be careful with the units, as they are usually expressed for a speed in km/h and not
-        # in m/s.
-
-        # Definition of driving criteria. Three driving ranges are established
-        self._v1_km_h = 50  # First speed limit in km/h
-        self._v2_km_h = 100  # Second speed limit in km/h
-
-        self._ax_trac1 = 2  # Maximum longitudinal tensile acceleration in m/s^2 with speed less than v1_km_h
-        self._ax_trac2 = 1  # Maximum longitudinal tensile acceleration in m/s^2 with speed between v1_km_h and v2_km_h
-        self._ax_trac3 = 0.5  # Maximum longitudinal tensile acceleration in m/s^2 with velocity greater than v2_km_h
-
-        self._ax_brake = -2  # Longitudinal braking acceleration in m/s^2
-        # Definition of engine variables
-        self._p_max_kw = p_max_kw  # Maximum engine power in kW
-
-        self._auxiliar_consumption_l_h = auxiliar_consumption_l_h  # Consumption auxiliary equipment
-
-    @property
-    def total_mass(self):
-        """Get the value of total_mass."""
-        return self._total_mass
-
-    @total_mass.setter
-    def total_mass(self, value):
-        """Set the value of total_mass."""
-        self._total_mass = value
-
-    @property
-    def gamma(self):
-        """Get the value of gamma."""
-        return self._gamma
-
-    @gamma.setter
-    def gamma(self, value):
-        """Set the value of gamma."""
-        self._gamma = value
-
-    @property
-    def A(self):
-        """Get the value of A."""
-        return self._A
-
-    @A.setter
-    def A(self, value):
-        """Set the value of A."""
-        self._A = value
-
-    @property
-    def B(self):
-        """Get the value of B."""
-        return self._B
-
-    @B.setter
-    def B(self, value):
-        """Set the value of B."""
-        self._B = value
-
-    @property
-    def C(self):
-        """Get the value of C."""
-        return self._C
-
-    @C.setter
-    def C(self, value):
-        """Set the value of C."""
-        self._C = value
-
-    @property
-    def v1_km_h(self):
-        """Get the value of v1_km_h."""
-        return self._v1_km_h
-
-    @v1_km_h.setter
-    def v1_km_h(self, value):
-        """Set the value of v1_km_h."""
-        self._v1_km_h = value
-
-    @property
-    def v2_km_h(self):
-        """Get the value of v2_km_h."""
-        return self._v2_km_h
-
-    @v2_km_h.setter
-    def v2_km_h(self, value):
-        """Set the value of v2_km_h."""
-        self._v2_km_h = value
-
-    @property
-    def ax_trac1(self):
-        """Get the value of ax_trac1."""
-        return self._ax_trac1
-
-    @ax_trac1.setter
-    def ax_trac1(self, value):
-        """Set the value of ax_trac1."""
-        self._ax_trac1 = value
-
-    @property
-    def ax_trac2(self):
-        """Get the value of ax_trac2."""
-        return self._ax_trac2
-
-    @ax_trac2.setter
-    def ax_trac2(self, value):
-        """Set the value of ax_trac2."""
-        self._ax_trac2 = value
-
-    @property
-    def ax_trac3(self):
-        """Get the value of ax_trac3."""
-        return self._ax_trac3
-
-    @ax_trac3.setter
-    def ax_trac3(self, value):
-        """Set the value of ax_trac3."""
-        self._ax_trac3 = value
-
-    @property
-    def ax_brake(self):
-        """Get the value of ax_brake."""
-        return self._ax_brake
-
-    @ax_brake.setter
-    def ax_brake(self, value):
-        """Set the value of ax_brake."""
-        self._ax_brake = value
-
-    @property
-    def p_max_kw(self):
-        """Get the value of p_max_kw."""
-        return self._p_max_kw
-
-    @p_max_kw.setter
-    def p_max_kw(self, value):
-        """Set the value of p_max_kw."""
-        self._p_max_kw = value
-
-    @property
-    def liters_conversion(self):
-        """Get the value of liters_conversion."""
-        return self._liters_conversion
-
-    @liters_conversion.setter
-    def liters_conversion(self, value):
-        """Set the value of liters_conversion."""
-        self._liters_conversion = value
-
-    @property
-    def motor_type(self):
-        """Get the value of motor_type."""
-        return self._motor_type
-
-    @motor_type.setter
-    def motor_type(self, value):
-        """Set the value of motor_type."""
-        self._motor_type = value
+        Returns:
+            float: Maximum allowable acceleration in m/s².
+        """
+        if speed_km_h < self.v1_km_h:
+            return self.ax_trac1
+        if speed_km_h < self.v2_km_h:
+            return self.ax_trac2
+        return self.ax_trac3

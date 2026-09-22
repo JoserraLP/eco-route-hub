@@ -1,7 +1,7 @@
 from abc import ABC
 from typing import Dict, Any
 
-from route_consumption_estimator.domain import VehicleDTO
+from route_consumption_estimator.domain.dto_models import VehicleDTO
 
 
 class VehicleInformationProvider(ABC):

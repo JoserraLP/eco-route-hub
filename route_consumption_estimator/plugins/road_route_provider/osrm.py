@@ -3,7 +3,7 @@ from typing import Dict, Any
 
 import requests
 
-from route_consumption_estimator.domain import Coords
+from route_consumption_estimator.domain.graph_models import Coords
 from route_consumption_estimator.interfaces import RoadRouteProvider
 
 LINUX_ENDPOINT = "localhost"

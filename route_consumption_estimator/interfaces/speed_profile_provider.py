@@ -2,8 +2,9 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 
-from route_consumption_estimator.domain import RouteModel, VehicleModel
-from route_consumption_estimator.domain import GRAVITY
+from route_consumption_estimator.domain.constants import GRAVITY
+from route_consumption_estimator.domain.route_model import RouteModel
+from route_consumption_estimator.domain.vehicle_model import VehicleModel
 
 # Max acceleration limit
 ACC_LIMIT_PROPORTION = 0.7 * GRAVITY
