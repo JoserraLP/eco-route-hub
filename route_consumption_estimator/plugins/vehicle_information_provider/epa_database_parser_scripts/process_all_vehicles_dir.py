@@ -1,91 +1,131 @@
+"""
+Processes EPA vehicle data files (CSV/XLSX) in a directory, converts units to metric,
+filters fuel types, and aggregates into a single parsed Excel output file.
+"""
+
+import logging
+from pathlib import Path
+from typing import List, Set
 import pandas as pd
-import os
-import glob
 
-# Define the directory
-directory = 'vehicles_data/'
-output_file = '/parsed_vehicles.xlsx'
+from route_consumption_estimator.plugins.vehicle_information_provider.epa_database_parser_scripts.constants import (
+    FUEL_TYPE_MAPPING,
+    HP_TO_KW,
+    LBF_TO_N,
+    LBS_TO_KG,
+    MPH_TO_KPH,
+)
+
+logger = logging.getLogger(__name__)
+
+DATA_DIR = Path("vehicles_data")
+OUTPUT_EXCEL = DATA_DIR / "parsed_vehicles.xlsx"
+EXCLUDED_FILES: Set[str] = set()
+
+REQUIRED_KEYS = [
+    "Model Year",
+    "Represented Test Veh Make",
+    "Represented Test Veh Model",
+    "Rated Horsepower",
+    "Target Coef A (lbf)",
+    "Target Coef B (lbf/mph)",
+    "Target Coef C (lbf/mph**2)",
+    "Test Fuel Type Description",
+    "Equivalent Test Weight (lbs.)",
+]
 
 
-excluded_files = {}
+def process_vehicle_file(file_path: Path) -> pd.DataFrame:
+    """Read and process a single EPA CSV or Excel file."""
+    logger.info(f"Processing file: {file_path.name}")
+    try:
+        if file_path.suffix.lower() == ".xlsx":
+            df = pd.read_excel(file_path)
+        elif file_path.suffix.lower() == ".csv":
+            df = pd.read_csv(file_path)
+        else:
+            return pd.DataFrame()
+    except Exception as err:
+        logger.error(f"Error reading file {file_path}: {err}")
+        return pd.DataFrame()
 
-# Get all csv and xlsx files in the directory
-files = glob.glob(os.path.join(directory, '*.xlsx')) + glob.glob(os.path.join(directory, '*.csv'))
+    if not set(REQUIRED_KEYS).issubset(df.columns):
+        logger.warning(
+            f"File '{file_path.name}' missing required EPA columns. Skipping."
+        )
+        return pd.DataFrame()
 
-# Initialize a list to store DataFrames
-dfs = []
+    # Filter columns and copy
+    df = df[REQUIRED_KEYS].copy()
 
-for file in files:
+    # Unit conversions
+    df["Equivalent Test Weight (kg)"] = df["Equivalent Test Weight (lbs.)"] * LBS_TO_KG
+    df["Target Coef A (N)"] = df["Target Coef A (lbf)"] * LBF_TO_N
+    df["Target Coef B (N/kph)"] = (
+        df["Target Coef B (lbf/mph)"] * LBF_TO_N / MPH_TO_KPH
+    )
+    df["Target Coef C (N/kph**2)"] = (
+        df["Target Coef C (N/kph**2)"] * LBF_TO_N / (MPH_TO_KPH**2)
+    )
+    df["Rated Power (kW)"] = df["Rated Horsepower"] * HP_TO_KW
 
-    filename = os.path.basename(file)
-    if filename in excluded_files:
-        continue
+    # Drop old imperial columns
+    df = df.drop(
+        columns=[
+            "Rated Horsepower",
+            "Target Coef A (lbf)",
+            "Target Coef B (lbf/mph)",
+            "Target Coef C (lbf/mph**2)",
+            "Equivalent Test Weight (lbs.)",
+        ]
+    )
 
-    # Load the file
-    if file.endswith('.xlsx'):
-        df = pd.read_excel(file)
-    else:
-        df = pd.read_csv(file)
+    # Normalize fuel type mapping
+    df["Test Fuel Type Description"] = df["Test Fuel Type Description"].replace(
+        FUEL_TYPE_MAPPING
+    )
 
-    keys = ['Model Year', 'Represented Test Veh Make', 'Represented Test Veh Model', 'Rated Horsepower',
-            'Target Coef A (lbf)', 'Target Coef B (lbf/mph)', 'Target Coef C (lbf/mph**2)',
-            'Test Fuel Type Description', 'Equivalent Test Weight (lbs.)']
+    return df
 
-    if set(keys).issubset(df.columns):
-        # Keep only the specified columns and add 'Equivalent Test Weight (lbs.)'
-        df = df[keys]
 
-        # Convert the weight to kilograms
-        # 1 lb = 0.453592 kg
-        df['Equivalent Test Weight (kg)'] = df['Equivalent Test Weight (lbs.)'] * 0.453592
+def aggregate_all_vehicles(
+    input_dir: Path, output_file: Path, excluded_files: Set[str]
+) -> None:
+    """Process all vehicle data files in directory and output aggregated parsed Excel."""
+    if not input_dir.exists():
+        logger.error(f"Input directory does not exist: {input_dir}")
+        return
 
-        # Convert the coefficients to European metrics
-        df['Target Coef A (N)'] = df['Target Coef A (lbf)'] * 4.44822
-        df['Target Coef B (N/kph)'] = df['Target Coef B (lbf/mph)'] * 4.44822 / 1.60934
-        df['Target Coef C (N/kph**2)'] = df['Target Coef C (lbf/mph**2)'] * 4.44822 / (1.60934 ** 2)
+    files = list(input_dir.glob("*.xlsx")) + list(input_dir.glob("*.csv"))
+    dfs: List[pd.DataFrame] = []
 
-        # Convert horsepower to kilowatts
-        df['Rated Power (kW)'] = df['Rated Horsepower'] * 0.7457
+    for file_path in files:
+        if file_path.name in excluded_files or file_path.resolve() == output_file.resolve():
+            continue
 
-        # Drop the old columns
-        df = df.drop(
-            columns=['Rated Horsepower', 'Target Coef A (lbf)', 'Target Coef B (lbf/mph)', 'Target Coef C (lbf/mph**2)',
-                     'Equivalent Test Weight (lbs.)'])
+        processed_df = process_vehicle_file(file_path)
+        if not processed_df.empty:
+            dfs.append(processed_df)
 
-        # Replace with fuel types
-        fuel_type_mapping = {
-            'Tier 2 Cert Gasoline': 'gasoline',
-            'Cold CO Premium (CERT)': 'gasoline',
-            'Cold CO Premium (Tier 2)': 'gasoline',
-            'Electricity': 'electric',
-            'Cold CO Regular (Tier 2)': 'gasoline',
-            'E85 (85% Ethanol 15% EPA Unleaded Gasoline)': 'gasoline',
-            'Federal Cert Diesel 7-15 PPM Sulfur': 'diesel',
-            'Hydrogen 5': '-',
-            'CARB LEV3 E10 Regular Gasoline': 'gasoline',
-            'Cold CO E10 Regular Gasoline (Tier 3)': 'gasoline',
-            'Tier 3 E10 Premium Gasoline (9 RVP @Low Alt.)': 'gasoline',
-            'CARB Phase II Gasoline': 'gasoline',
-            'Tier 3 E10 Regular Gasoline (9 RVP @Low Alt.)': 'gasoline',
-            'CNG': '-',
-            'EPA Unleaded Gasoline': 'gasoline',
-            'LPG': '-'
-        }
+    if not dfs:
+        logger.warning("No valid vehicle datasets found to aggregate.")
+        return
 
-        # Replace the values
-        df['Test Fuel Type Description'] = df['Test Fuel Type Description'].replace(fuel_type_mapping)
+    df_all = pd.concat(dfs, ignore_index=True)
 
-        # Append the DataFrame to the list
-        dfs.append(df)
+    # Filter unmapped/irrelevant engine types
+    df_all = df_all[df_all["Test Fuel Type Description"] != "-"]
 
-# Concatenate all DataFrames in the list
-df_all = pd.concat(dfs, ignore_index=True)
+    # Drop duplicates by Make and Model
+    df_all = df_all.drop_duplicates(
+        subset=["Represented Test Veh Make", "Represented Test Veh Model"]
+    )
 
-# Remove the engines with -
-df_all = df_all[df_all['Test Fuel Type Description'] != '-']
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    df_all.to_excel(output_file, index=False)
+    logger.info(f"Successfully saved aggregated vehicles dataset to {output_file}")
 
-# Remove duplicates based on 'Represented Test Veh Make' and 'Represented Test Veh Model'
-df_all = df_all.drop_duplicates(subset=['Represented Test Veh Make', 'Represented Test Veh Model'])
 
-# Save the new DataFrame to a new Excel file
-df_all.to_excel(directory + output_file, index=False)
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    aggregate_all_vehicles(DATA_DIR, OUTPUT_EXCEL, EXCLUDED_FILES)
