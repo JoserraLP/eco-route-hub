@@ -1,112 +1,160 @@
-import numpy as np
-from flask import Blueprint, jsonify, request, current_app
+"""
+User routes route handlers and statistics calculations.
 
+Provides RESTful API endpoints for managing user routes (retrieval, creation, 
+and deletion) and automatically updating aggregated user performance statistics.
+"""
+
+from datetime import datetime
+from typing import Tuple, Union
+from flask import Blueprint, Response, current_app, jsonify, request
+from sqlalchemy.exc import SQLAlchemyError
+
+from route_consumption_estimator import db
 from route_consumption_estimator.app.security import api_required
-from route_consumption_estimator.domain import *
+from route_consumption_estimator.domain.dao_models import UserRouteDAOSchema, UserRouteDAO
 
-# user_routes blueprint
+# Blueprint definition for user routes operations
 user_routes_bp = Blueprint('user_routes', __name__)
 
-# Create the UserRoutes schema objects
+# Schema initializations for serialization and validation
 user_route_schema = UserRouteDAOSchema()
 user_routes_schema = UserRouteDAOSchema(many=True)
 
+REQUIRED_CREATE_KEYS = {
+    "UserID", "UserVehicleID", "AdditionalMass", "SourceCoords",
+    "DestinationCoords", "SelectedRoutePolyline", "SelectedRouteType",
+    "SelectedRouteConsumption", "SelectedRouteTime", "SelectedRouteDistance",
+    "PerformedRoutePolyline", "PerformedRouteConsumption", "PerformedRouteTime",
+    "PerformedRouteDistance", "PerformedRouteEstimatedConsumption",
+    "PerformedRouteEstimatedTime", "PerformedRouteEstimatedDistance",
+    "NumStopsKm", "SpeedVariationNum", "DrivingAggressiveness"
+}
 
-# Create and endpoint to get all or a given user user_routes
+
 @user_routes_bp.route('/user_routes', methods=['GET'])
 @api_required
-def get_user_routes():
-    # Retrieve query params (user)
+def get_user_routes() -> Tuple[Response, int]:
+    """
+    Retrieve user routes from the database.
+
+    Supports fetching the 5 most recent routes for a specific user ID, 
+    or fetching all stored routes if no filter is provided.
+
+    Query Parameters:
+        user (str, optional): Target user identifier to filter routes.
+
+    Returns:
+        Tuple[Response, int]: JSON list of serialized user routes and HTTP status 200.
+    """
     user = request.args.get('user', '')
+
     if user:
-        # Query the database for the user_routes with the given user
-        user_routes = UserRouteDAO.query.filter_by(UserID=user).order_by(UserRouteDAO.RecordDate.desc()).limit(5)
+        # Retrieve the 5 most recent routes for the specified user
+        user_routes = (
+            UserRouteDAO.query
+            .filter_by(UserID=user)
+            .order_by(UserRouteDAO.RecordDate.desc())
+            .limit(5)
+            .all()
+        )
     else:
-        # Query the database for all user routes
+        # Retrieve all user routes
         user_routes = UserRouteDAO.query.all()
-    # Serialize the user routes as JSON
+
     result = user_routes_schema.dump(user_routes)
-    # Return the JSON response
-    return jsonify(result)
+    return jsonify(result), 200
 
 
-# Create an endpoint to create a new user route
 @user_routes_bp.route('/user_routes', methods=['POST'])
 @api_required
-def create_user_route():
+def create_user_route() -> Tuple[Response, int]:
+    """
+    Create a new user route entry and trigger user statistics recalculation.
+
+    Validates that all required route execution fields are provided in the payload, 
+    persists the route record, and updates aggregated performance metrics for the user.
+
+    Request Body (JSON):
+        Mandatory keys specified in REQUIRED_CREATE_KEYS.
+
+    Returns:
+        Tuple[Response, int]: JSON serialized created user route with HTTP 201 Created, 
+                              or error response with HTTP status 400 or 500.
+    """
     current_app_config = current_app.config["APP_CONFIG"].system
+    data = request.get_json(silent=True) or {}
 
-    # Get the JSON data from the request
-    data = request.get_json()
-    # Validate the data
-    keys = set(data.keys())
-    strings_to_check = {
-        "UserID", "UserVehicleID", "AdditionalMass", "SourceCoords",
-        "DestinationCoords", "SelectedRoutePolyline",
-        "SelectedRouteType", "SelectedRouteConsumption", "SelectedRouteTime",
-        "SelectedRouteDistance", "PerformedRoutePolyline", "PerformedRouteConsumption",
-        "PerformedRouteTime", "PerformedRouteDistance", "PerformedRouteEstimatedConsumption",
-        "PerformedRouteEstimatedTime", "PerformedRouteEstimatedDistance", "NumStopsKm", "SpeedVariationNum",
-        "DrivingAggressiveness"
-    }
-    if not strings_to_check.issubset(keys):
-        # Return A 400 bad request error
-        return jsonify({'message': 'Missing data'}), 400
+    # Validate mandatory payload keys
+    missing_keys = REQUIRED_CREATE_KEYS - set(data.keys())
+    if missing_keys:
+        return jsonify({
+            'message': f'Missing required parameters: {", ".join(sorted(missing_keys))}'
+        }), 400
 
-    # Get current datetime
     now = datetime.now()
 
-    # Create a new user route object with default values if not defined
-    user_route = UserRouteDAO(UserID=data.get('UserID'),
-                              UserVehicleID=data.get('UserVehicleID'),
-                              AdditionalMass=data.get('AdditionalMass',
-                                                      current_app_config.default_passenger_additional_mass),
-                              SourceCoords=data.get('SourceCoords'),
-                              DestinationCoords=data.get('DestinationCoords'),
-                              SelectedRoutePolyline=data.get('SelectedRoutePolyline'),
-                              SelectedRouteType=data.get('SelectedRouteType'),
-                              SelectedRouteConsumption=data.get('SelectedRouteConsumption'),
-                              SelectedRouteTime=data.get('SelectedRouteTime'),
-                              SelectedRouteDistance=data.get('SelectedRouteDistance'),
-                              PerformedRoutePolyline=data.get('PerformedRoutePolyline'),
-                              PerformedRouteConsumption=data.get('PerformedRouteConsumption'),
-                              PerformedRouteTime=data.get('PerformedRouteTime'),
-                              PerformedRouteDistance=data.get('PerformedRouteDistance'),
-                              PerformedRouteEstimatedConsumption=data.get('PerformedRouteEstimatedConsumption'),
-                              PerformedRouteEstimatedTime=data.get('PerformedRouteEstimatedTime'),
-                              PerformedRouteEstimatedDistance=data.get('PerformedRouteEstimatedDistance'),
-                              NumStopsKm=data.get('NumStopsKm'),
-                              SpeedVariationNum=data.get('SpeedVariationNum'),
-                              DrivingAggressiveness=data.get('DrivingAggressiveness'),
-                              RecordDate=now.strftime('%Y-%m-%d %H:%M:%S')
-                              )
+    # Instantiate new user route entity
+    user_route = UserRouteDAO(
+        UserID=data.get('UserID'),
+        UserVehicleID=data.get('UserVehicleID'),
+        AdditionalMass=data.get('AdditionalMass', current_app_config.default_passenger_additional_mass),
+        SourceCoords=data.get('SourceCoords'),
+        DestinationCoords=data.get('DestinationCoords'),
+        SelectedRoutePolyline=data.get('SelectedRoutePolyline'),
+        SelectedRouteType=data.get('SelectedRouteType'),
+        SelectedRouteConsumption=data.get('SelectedRouteConsumption'),
+        SelectedRouteTime=data.get('SelectedRouteTime'),
+        SelectedRouteDistance=data.get('SelectedRouteDistance'),
+        PerformedRoutePolyline=data.get('PerformedRoutePolyline'),
+        PerformedRouteConsumption=data.get('PerformedRouteConsumption'),
+        PerformedRouteTime=data.get('PerformedRouteTime'),
+        PerformedRouteDistance=data.get('PerformedRouteDistance'),
+        PerformedRouteEstimatedConsumption=data.get('PerformedRouteEstimatedConsumption'),
+        PerformedRouteEstimatedTime=data.get('PerformedRouteEstimatedTime'),
+        PerformedRouteEstimatedDistance=data.get('PerformedRouteEstimatedDistance'),
+        NumStopsKm=data.get('NumStopsKm'),
+        SpeedVariationNum=data.get('SpeedVariationNum'),
+        DrivingAggressiveness=data.get('DrivingAggressiveness'),
+        RecordDate=now.strftime('%Y-%m-%d %H:%M:%S')
+    )
 
-    # Add the user route to the database
-    db.session.add(user_route)
-    db.session.commit()
+    try:
+        db.session.add(user_route)
+        db.session.commit()
 
-    recalculate_user_stats(data.get('UserID'))
+        # Recalculate user statistics following route addition
+        recalculate_user_stats(data['UserID'])
 
-    # Serialize the user route as JSON
+    except SQLAlchemyError:
+        db.session.rollback()
+        return jsonify({'message': 'Database error occurred while saving user route'}), 500
+    except Exception as err:
+        db.session.rollback()
+        return jsonify({
+            'message': 'Error processing route creation or statistics recalculation',
+            'error': str(err)
+        }), 500
+
     result = user_route_schema.dump(user_route)
-    # Return the JSON response with A 201 created status
     return jsonify(result), 201
 
 
-def recalculate_user_stats(user_id):
+def recalculate_user_stats(user_id: str) -> None:
     """
-    Method to recalculate the user stats based on all the user_routes
+    Recalculate aggregated performance and driving statistics for a given user.
 
-    :param user_id: user identifier
-    :return:
+    Computes consumption savings, eco-friendly driving proportions, and 
+    overall driving rating across all stored routes for the user.
+
+    Args:
+        user_id (str): Target user identifier.
     """
+    user_routes = UserRouteDAO.query.filter_by(UserID=user_id).all()
+    if not user_routes:
+        return
 
-    # Query all the user routes
-    user_routes = UserRouteDAO.query.filter_by(UserID=user_id)
-
-    user_routes = user_routes_schema.dump(user_routes)
-
-    # Define variable to store the values
+    # Accumulator variables
     total_estimated_consumption = 0.0
     total_real_consumption = 0.0
     eco_time = 0.0
@@ -114,57 +162,83 @@ def recalculate_user_stats(user_id):
     eco_distance = 0.0
     total_distance = 0.0
     eco_routes_num = 0
-    drive_rating = []
+    drive_ratings = []
 
-    for user_route in user_routes:
-        # Difference of performed routes consumptions
-        total_estimated_consumption += float(user_route['PerformedRouteEstimatedConsumption'])
-        total_real_consumption += float(user_route['PerformedRouteConsumption'])
-        total_time += int(user_route['PerformedRouteTime'])
-        total_distance += int(user_route['PerformedRouteDistance'])
-        # Only count the selected route type if ECO and route is not selected
-        if user_route['SelectedRouteType'] == 'ECO' and user_route['SelectedRoutePolyline'] != 'null':
-            eco_time += int(user_route['PerformedRouteTime'])
-            eco_distance += int(user_route['PerformedRouteDistance'])
+    # Process metrics directly from ORM instances without Marshmallow overhead
+    for route in user_routes:
+        est_cons = float(route.PerformedRouteEstimatedConsumption or 0)
+        real_cons = float(route.PerformedRouteConsumption or 0)
+        route_time = float(route.PerformedRouteTime or 0)
+        route_dist = float(route.PerformedRouteDistance or 0)
+
+        total_estimated_consumption += est_cons
+        total_real_consumption += real_cons
+        total_time += route_time
+        total_distance += route_dist
+
+        if route.SelectedRouteType == 'ECO' and str(route.SelectedRoutePolyline) != 'null':
+            eco_time += route_time
+            eco_distance += route_dist
             eco_routes_num += 1
 
-        # average of all the three metrics
-        # int(user_route['NumStopsKm'])
-        drive_rating.append(np.mean([int(user_route['SpeedVariationNum']),
-                                     int(user_route['DrivingAggressiveness'])]))
+        speed_var = float(route.SpeedVariationNum or 0)
+        aggressiveness = float(route.DrivingAggressiveness or 0)
+        drive_ratings.append((speed_var + aggressiveness) / 2.0)
 
-    # Query the database for the user stat with the given user ID
-    user_stats = UserStatsDAO.query.get(user_id)
+    # Query target user stats using modern SQLAlchemy getter
+    user_stats = db.session.get(UserStatsDAO, user_id)
+    if not user_stats:
+        return
 
-    # Update the user stats attributes
-    user_stats.ConsumptionSaving = 100 * (total_estimated_consumption - total_real_consumption) / \
-                                   max([total_estimated_consumption, total_real_consumption])
-    user_stats.EcoTime = 100 * eco_time / total_time
-    user_stats.EcoDistance = 100 * eco_distance / total_distance
-    user_stats.EcoRoutesNum = 100 * eco_routes_num / len(drive_rating)
-    user_stats.DriveRating = np.mean(drive_rating)
+    # Safe divisions to prevent ZeroDivisionError
+    max_consumption = max(total_estimated_consumption, total_real_consumption)
+    user_stats.ConsumptionSaving = (
+        100.0 * (total_estimated_consumption - total_real_consumption) / max_consumption
+        if max_consumption > 0 else 0.0
+    )
 
-    # Commit the changes to the database
+    user_stats.EcoTime = (100.0 * eco_time / total_time) if total_time > 0 else 0.0
+    user_stats.EcoDistance = (100.0 * eco_distance / total_distance) if total_distance > 0 else 0.0
+
+    num_routes = len(user_routes)
+    user_stats.EcoRoutesNum = (100.0 * eco_routes_num / num_routes) if num_routes > 0 else 0.0
+    user_stats.DriveRating = (sum(drive_ratings) / len(drive_ratings)) if drive_ratings else 0.0
+
     db.session.commit()
 
 
-# Create an endpoint to remove a user route by id
 @user_routes_bp.route('/user_routes', methods=['DELETE'])
 @api_required
-def delete_user_route():
+def delete_user_route() -> Union[Tuple[Response, int], Tuple[str, int]]:
+    """
+    Delete a user route record by its unique ID.
+
+    Query Parameters:
+        user_route_id (str): Mandatory user route identifier to delete.
+
+    Returns:
+        Union[Tuple[Response, int], Tuple[str, int]]: Empty response with HTTP 204 No Content on success, 
+                                                      HTTP 400 Bad Request if param missing, 
+                                                      HTTP 404 Not Found if record missing, 
+                                                      or HTTP 500 on database failure.
+    """
     user_route_id = request.args.get('user_route_id', '')
-    # Check if the parameter not set
+
+    # Missing query parameter is a client bad request (400)
     if not user_route_id:
-        # Return A 404 not found error
-        return jsonify({'message': 'user_route_id is required'}), 404
-    # Query the database for the user route with the given user route ID
-    user_route = UserRouteDAO.query.get(user_route_id)
-    # Check if the user route exists
+        return jsonify({'message': 'Parameter user_route_id is required'}), 400
+
+    # Retrieve record using modern SQLAlchemy syntax
+    user_route = db.session.get(UserRouteDAO, user_route_id)
+
     if user_route is None:
-        # Return A 404 not found error
         return jsonify({'message': 'User route not found'}), 404
-    # Delete the user route from the database
-    db.session.delete(user_route)
-    db.session.commit()
-    # Return A 204 no content status
+
+    try:
+        db.session.delete(user_route)
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        return jsonify({'message': 'Database error occurred while deleting user route'}), 500
+
     return '', 204
