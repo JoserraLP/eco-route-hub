@@ -5,30 +5,17 @@ class RouteModel:
 
     **segment_start_point**: Variable indicating the starting point of each leg, measured in meters from the origin.
 
-    **speed_limit_km_h**: Speed limit of each leg, expressed in km/h.
-
-    **Slope**: Slope of the section, expressed in sexagesimal degrees.
+    **additional_information**: dict with additional route information
     """
 
-    def __init__(self, segment_start_point: list, speed_limit_km_h: list, slope: list):
+    def __init__(self, segment_start_point: list, additional_info: dict):
         # The path definition is characterized by the distance to the origin of the start of each segment, measured
         # in meters (m).
-
         self._segment_start_point = segment_start_point  # Vector of the start of the segment
 
         self._total_distance = max(segment_start_point)  # Total length of the route
 
-        #  Speed limit on each section, obtained from the maximum speed of the section, modified by the state of the
-        #  traffic. It is expressed in km/h
-
-        # Segment speed limits
-        self._speed_limit_km_h = speed_limit_km_h
-
-        # Ramp of each segment expressed in %. It is considered that the %
-        # ramp(%)=100*tan(inclination)=100*sin(inclination)
-
-        # Slope of each segment
-        self._slope = slope
+        self._additional_info = additional_info
 
     @property
     def segment_start_point(self):
@@ -51,21 +38,11 @@ class RouteModel:
         self._total_distance = value
 
     @property
-    def speed_limit_km_h(self):
-        """Get the value of speed_limit_km_h."""
-        return self._speed_limit_km_h
+    def additional_info(self):
+        """Get the value of additional_info."""
+        return self._additional_info
 
-    @speed_limit_km_h.setter
-    def speed_limit_km_h(self, value):
-        """Set the value of speed_limit_km_h."""
-        self._speed_limit_km_h = value
-
-    @property
-    def slope(self):
-        """Get the value of slope."""
-        return self._slope
-
-    @slope.setter
-    def slope(self, value):
-        """Set the value of slope."""
-        self._slope = value
+    @additional_info.setter
+    def additional_info(self, value):
+        """Set the value of additional_info."""
+        self._additional_info = value

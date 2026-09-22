@@ -1,5 +1,8 @@
 from dotenv import load_dotenv
 from flask import Flask
+
+from route_consumption_estimator.config.constants import CONFIG_FILE_DIR
+from route_consumption_estimator.config.models import AppConfig
 from route_consumption_estimator.extensions import db, ma
 
 from route_consumption_estimator.config.loader import load_config
@@ -7,8 +10,7 @@ from route_consumption_estimator.core.plugin_manager import PluginManager
 
 load_dotenv()
 
-
-def create_app():
+def create_app(config_dir=CONFIG_FILE_DIR):
     """
     Create A Flask app, configure it. register some project routes as 'auth' or 'main',
     initialize related services as MQTT or SQLAlchemy (with data insertion) and the flask login manager.
@@ -18,7 +20,7 @@ def create_app():
 
     """
 
-    app_config = load_config()
+    app_config = load_config(config_dir)
     # Initialize plugin system
     manager = PluginManager(app_config)
 
@@ -29,6 +31,7 @@ def create_app():
 
     # Store typed config inside Flask
     app.config["APP_CONFIG"] = app_config
+    app.config["ALL_ATTRIBUTES"] = manager.all_attributes
 
     # Configure single database into flask app
 
@@ -67,5 +70,8 @@ def create_app():
 
     from route_consumption_estimator.app.routes.feature_review import feature_review_bp
     app.register_blueprint(feature_review_bp)
+
+    from route_consumption_estimator.app.routes.benchmarking import benchmarking_bp
+    app.register_blueprint(benchmarking_bp)
 
     return app

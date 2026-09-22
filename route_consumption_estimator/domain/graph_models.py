@@ -5,7 +5,7 @@ from typing import Dict, Any
 @dataclass
 class Segment:
     """ OpenStreetMap road relation between two nodes """
-    max_speed: int
+    maxspeed: int
     segment_id: str = ""
     extra: Dict[str, Any] = field(default_factory=dict)
     """

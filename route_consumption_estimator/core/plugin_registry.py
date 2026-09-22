@@ -6,19 +6,19 @@ class PluginRegistry:
     # ---------------------------------
     # REGISTER PLUGIN
     # ---------------------------------
-    def register(self, plugin_type, instance):
+    def register(self, plugin_type, name, instance):
 
         if plugin_type not in self._registry:
-            self._registry[plugin_type] = []
+            self._registry[plugin_type] = {}
 
-        self._registry[plugin_type].append(instance)
+        self._registry[plugin_type][name] = instance
 
     # ---------------------------------
     # GET SINGLE PLUGIN
     # ---------------------------------
     def get(self, plugin_type):
 
-        plugins = self._registry.get(plugin_type)
+        plugins = self._registry.get(plugin_type).values()
 
         if not plugins:
             raise KeyError(f"No plugin registered for type '{plugin_type}'")
@@ -28,14 +28,16 @@ class PluginRegistry:
                 f"Multiple plugins registered for '{plugin_type}', use get_all()"
             )
 
-        return plugins[0]
+        return next(iter(plugins))
 
     # ---------------------------------
     # GET ALL PLUGINS
     # ---------------------------------
     def get_all(self, plugin_type):
+        return [v for v in self._registry.get(plugin_type, {}).values()]
 
-        return self._registry.get(plugin_type, [])
+    def get_specific_plugins(self, plugin_type, names):
+        return [v for k, v in self._registry.get(plugin_type, {}).items() if k in names]
 
     # ---------------------------------
     # CHECK IF PLUGIN EXISTS

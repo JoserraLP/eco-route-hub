@@ -2,110 +2,84 @@ import numpy as np
 import polyline
 from flask import current_app
 
-from route_consumption_estimator.core import GraphEngine, PluginRegistry, RouteProcessor, \
+from route_consumption_estimator.core import GraphEngine, PluginRegistry, \
     calculate_distances, calculate_slopes, smoothing_process, evaluate_consumption
+from route_consumption_estimator.core.route_processor import RouteProcessor
 from route_consumption_estimator.domain import Coords, RouteModel
-from route_consumption_estimator.domain.constants import PLUGIN_TYPE_ROAD_ROUTING, \
-    PLUGIN_TYPE_VEHICLE_INFORMATION, PLUGIN_TYPE_VEHICLE_ENGINE_MODEL, PLUGIN_TYPE_ROAD_INFORMATION
+from route_consumption_estimator.domain.constants import PLUGIN_TYPE_ROAD_INFRASTRUCTURE_PROVIDER, \
+    PLUGIN_TYPE_TRAFFIC_OPERATION_PROVIDER, PLUGIN_TYPE_AMBIENT_WEATHER_PROVIDER, PLUGIN_TYPE_ROAD_ROUTE_PROVIDER, \
+    PLUGIN_TYPE_DRIVING_BEHAVIOR_PROVIDER, PLUGIN_TYPE_SPEED_PROFILE_PROVIDER, PLUGIN_TYPE_ROUTE_SEGMENTATION_PROVIDER, \
+    PLUGIN_TYPE_VEHICLE_ENERGY_MODEL_PROVIDER, PLUGIN_TYPE_VEHICLE_INFORMATION_PROVIDER
 
 class Core:
 
     def __init__(self, registry: PluginRegistry,
                  vehicle_id: str,
                  additional_mass: int = 0,
-                 alpha=None):
+                 alpha=None,
+                 models=None):
 
         self._registry = registry
 
-        self._road_information_providers = registry.get_all(PLUGIN_TYPE_ROAD_INFORMATION)
-        self._road_routing_providers = registry.get_all(PLUGIN_TYPE_ROAD_ROUTING)
-        self._vehicle_engine_model_providers = registry.get_all(PLUGIN_TYPE_VEHICLE_ENGINE_MODEL)
-        self._vehicle_information_providers = registry.get(PLUGIN_TYPE_VEHICLE_INFORMATION)
+        self._road_infrastructure_providers = registry.get_all(PLUGIN_TYPE_ROAD_INFRASTRUCTURE_PROVIDER)
+        self._traffic_operation_providers = registry.get_all(PLUGIN_TYPE_TRAFFIC_OPERATION_PROVIDER)
+        self._ambient_weather_providers = registry.get_all(PLUGIN_TYPE_AMBIENT_WEATHER_PROVIDER)
+        self._road_route_providers = registry.get_all(PLUGIN_TYPE_ROAD_ROUTE_PROVIDER)
+        self._driving_behavior_providers = registry.get_all(PLUGIN_TYPE_DRIVING_BEHAVIOR_PROVIDER)
+        self._speed_profile_provider = registry.get(PLUGIN_TYPE_SPEED_PROFILE_PROVIDER)
+        self._route_segmentation_provider = registry.get(PLUGIN_TYPE_ROUTE_SEGMENTATION_PROVIDER)
+        if not models:
+            self._vehicle_energy_model_providers = registry.get_all(PLUGIN_TYPE_VEHICLE_ENERGY_MODEL_PROVIDER)
+        else:
+            self._vehicle_energy_model_providers = registry.get_specific_plugins(
+                PLUGIN_TYPE_VEHICLE_ENERGY_MODEL_PROVIDER, models)
+            self._specific_vehicle_energy_model_names = models
+
+        self._vehicle_information_provider = registry.get(PLUGIN_TYPE_VEHICLE_INFORMATION_PROVIDER)
 
         self._graph_engine = GraphEngine()
-        self._route_processor = RouteProcessor(self._road_information_providers)
+        self._route_processor = RouteProcessor(route_segmentation_provider=self._route_segmentation_provider,
+                                               road_infrastructure_providers=self._road_infrastructure_providers,
+                                               road_route_providers=self._road_route_providers,
+                                               traffic_operation_providers=self._traffic_operation_providers,
+                                               ambient_weather_providers=self._ambient_weather_providers)
 
         current_app_config = current_app.config["APP_CONFIG"].system
         self._alpha = alpha if alpha else current_app_config.smoothing_factor_alpha
 
         # Get vehicle information and core model
-        vehicle_information = self._vehicle_information_providers.get_vehicle_info_by_id(vehicle_id)
+        vehicle_information = self._vehicle_information_provider.get_vehicle_info_by_id(vehicle_id)
 
-        self._vehicle_model = self._vehicle_information_providers.get_vehicle_model(vehicle=vehicle_information,
+        self._vehicle_model = self._vehicle_information_provider.get_vehicle_model(vehicle=vehicle_information,
                                                                                     additional_mass=additional_mass)
 
-    def request_all_routes(self, coordinates_str: str):
-        route_coordinates = [Coords(lat=float(coordinates.split(',')[0]), lon=float(coordinates.split(',')[1]))
-                             for coordinates in coordinates_str.split(';')]
-
-        routes = []
-        for road_routing_service in self._road_routing_providers:
-            service_routes = road_routing_service.get_routes(route_coordinates)
-            for service_route in service_routes:
-                routes.append(self._route_processor.process_route(
-                    route_coordinates=service_route['route_coordinates'],
-                    common_source=service_route['common_source'],
-                    common_target=service_route['common_target'],
-                    router_distance=service_route['router_distance'],
-                    router_duration=service_route['router_duration']
-                ))
-
-        print(f"Total possible routes {len(routes)}")
-
-        return routes
-
-    def process_route_information(self, routes: list):
-        # Store the routes information into graph
-        self._graph_engine.routes = routes
-
-        self._graph_engine.store_routes_graph()
-
-        self._graph_engine.extend_graph_info()
-
-        # router_distance
-        avg_route_distance = np.mean([route['router_distance'] for route in routes if 'router_distance' in route])
-
-        if avg_route_distance == 0:
-            avg_route_distance = routes[0]['distances'][-1]
-
-        # Get the routes' information (by micro segments)
-        return self._graph_engine.get_routes_information(avg_route_distance)
-
-    # CONSUMPTION ESTIMATION
-    def estimate_consumption_routes(self, routes: list, routes_information: list):
-        current_app_config = current_app.config["APP_CONFIG"].system
-
-        all_estimations = []
-        # Create a route class with each route
-        for i, route_information in enumerate(routes_information):
-            # Process route to encode it
-            encoded_route = ''
-            if 'segments_representation' in routes[i]:
-                processed_route = [(item.lat, item.lon) for item in routes[i]['segments_representation']]
-
-                encoded_route = polyline.encode(processed_route, current_app_config.polyline_precision)
-
-            route = RouteModel(segment_start_point=route_information['start_points'],
-                               speed_limit_km_h=route_information['max_speeds'],
-                               slope=route_information['slopes'])
-
-            for vehicle_engine_model in self._vehicle_engine_model_providers:
-                # Set current route and vehicle information
-                vehicle_engine_model.load_route_and_vehicle(route, self._vehicle_model)
-                vehicle_engine_model.perform_speed_profile_estimation()
-
-                vehicle_engine_model.perform_power_energy_consumption_calculation()
-
-                all_estimations.append(vehicle_engine_model.retrieve_estimations() | {'Route': fr"{encoded_route}"})
-
-        return all_estimations
-
-    def execute_route_estimation_workflow(self, coordinates_str: str):
+    def execute_benchmarking_workflow(self, coordinates: str):
         # Request routes
-        routes = self.request_all_routes(coordinates_str)
+        routes = self._route_processor.request_all_routes(coordinates)
         if routes:
             # Process routes information
-            routes_information = self.process_route_information(routes)
+            routes_information = self.store_routes_into_graph(routes)
+
+            estimations = self.estimate_consumption_routes(routes, routes_information,
+                                                           self._specific_vehicle_energy_model_names)
+
+            # Merge both routes and estimations
+            routes_estimations = [{**x, **y} for x, y in zip(routes, estimations)]
+
+            # Define final routes
+            final_routes = routes_estimations
+        else:
+            # Define final routes
+            final_routes = {}
+
+        return final_routes
+
+    def execute_route_estimation_workflow(self, coordinates: str):
+        # Request routes
+        routes = self._route_processor.request_all_routes(coordinates)
+        if routes:
+            # Process routes information
+            routes_information = self.store_routes_into_graph(routes)
 
             estimations = self.estimate_consumption_routes(routes, routes_information)
 
@@ -129,6 +103,59 @@ class Core:
 
         return final_routes
 
+    def store_routes_into_graph(self, routes: list):
+        # Store the routes information into graph
+        self._graph_engine.routes = routes
+
+        self._graph_engine.store_routes_graph()
+
+        self._graph_engine.extend_graph_info()
+
+        # router_distance
+        avg_route_distance = np.mean([route['router_distance'] for route in routes if 'router_distance' in route])
+
+        if avg_route_distance == 0:
+            avg_route_distance = routes[0]['distances'][-1]
+
+        # Get the routes' information (by micro segments)
+        return self._graph_engine.get_routes_information(avg_route_distance)
+
+    # CONSUMPTION ESTIMATION
+    def estimate_consumption_routes(self, routes: list, routes_information: list,
+                                    specific_energy_providers_names: list = None):
+        current_app_config = current_app.config["APP_CONFIG"].system
+
+        all_estimations = []
+        # Create a route class with each route
+        for i, route_information in enumerate(routes_information):
+            # Process route to encode it
+            encoded_route = ''
+            if 'segments_representation' in routes[i]:
+                processed_route = [(item.lat, item.lon) for item in routes[i]['segments_representation']]
+
+                encoded_route = polyline.encode(processed_route, current_app_config.polyline_precision)
+
+            additional_info = {k: v for k, v in route_information.items() if k != 'start_points'}
+
+            route = RouteModel(segment_start_point=route_information['start_points'],
+                               additional_info=additional_info)
+
+            for vehicle_model_idx, vehicle_engine_model in enumerate(self._vehicle_energy_model_providers):
+                # Set current route and vehicle information
+                vehicle_engine_model.load_route_and_vehicle(route, self._vehicle_model)
+                vehicle_engine_model.perform_speed_profile_estimation()
+
+                vehicle_engine_model.perform_power_energy_consumption_calculation()
+
+                all_info = vehicle_engine_model.retrieve_estimations() | {'route': fr"{encoded_route}"}
+
+                if specific_energy_providers_names:
+                    all_info = all_info | {'model': specific_energy_providers_names[vehicle_model_idx]}
+
+                all_estimations.append(all_info)
+
+        return all_estimations
+
     # REAL CONSUMPTION CALCULATION
     def process_polyline_route(self, route_polyline: str):
         current_app_config = current_app.config["APP_CONFIG"].system
@@ -140,7 +167,7 @@ class Core:
         processed_performed_route = self._route_processor.process_route(route_coordinates=performed_route_coords,
                                                                         common_source=performed_route_coords[0],
                                                                         common_target=performed_route_coords[-1])
-        routes_information = self.process_route_information([processed_performed_route])
+        routes_information = self.store_routes_into_graph([processed_performed_route])
 
         return routes_information
 
@@ -154,9 +181,9 @@ class Core:
     def execute_route_real_consumption_workflow(self, vehicle_id: str, additional_mass: int, heights: list,
                                                 speeds: list, times: list):
         # Get vehicle information and core model
-        vehicle_information = self._vehicle_information_providers.get_vehicle_info_by_id(vehicle_id)
+        vehicle_information = self._vehicle_information_provider.get_vehicle_info_by_id(vehicle_id)
 
-        vehicle = self._vehicle_information_providers.get_vehicle_model(vehicle=vehicle_information,
+        vehicle = self._vehicle_information_provider.get_vehicle_model(vehicle=vehicle_information,
                                                                         additional_mass=additional_mass)
 
         # Create a path model with the input data
@@ -169,7 +196,7 @@ class Core:
         route = RouteModel(segment_start_point=segment_start_point,
                            slope=slopes, speed_limit_km_h=speeds)
 
-        for vehicle_engine_model in self._vehicle_engine_model_providers:
+        for vehicle_engine_model in self._vehicle_energy_model_providers:
             vehicle_engine_model.vehicle = vehicle
             vehicle_engine_model.route = route
 

@@ -1,16 +1,24 @@
 import importlib
 
-from route_consumption_estimator.domain.constants import PLUGIN_TYPE_ROAD_INFORMATION, PLUGIN_TYPE_VEHICLE_INFORMATION, \
-    PLUGIN_TYPE_ROAD_ROUTING, PLUGIN_TYPE_VEHICLE_ENGINE_MODEL
 from route_consumption_estimator.core.plugin_registry import PluginRegistry
-from route_consumption_estimator.interfaces import RoadInformationProvider, RoadRoutingServiceProvider, \
-    VehicleEngineModelProvider, VehicleInformationProvider
+from route_consumption_estimator.domain.constants import PLUGIN_TYPE_ROAD_INFRASTRUCTURE_PROVIDER, \
+    PLUGIN_TYPE_TRAFFIC_OPERATION_PROVIDER, PLUGIN_TYPE_AMBIENT_WEATHER_PROVIDER, PLUGIN_TYPE_ROAD_ROUTE_PROVIDER, \
+    PLUGIN_TYPE_DRIVING_BEHAVIOR_PROVIDER, PLUGIN_TYPE_SPEED_PROFILE_PROVIDER, PLUGIN_TYPE_ROUTE_SEGMENTATION_PROVIDER, \
+    PLUGIN_TYPE_VEHICLE_ENERGY_MODEL_PROVIDER, PLUGIN_TYPE_VEHICLE_INFORMATION_PROVIDER
+from route_consumption_estimator.interfaces import RoadInfrastructureInformationProvider, RoadRouteProvider, \
+    VehicleEnergyModelProvider, VehicleInformationProvider, SpeedProfileProvider, AmbientWeatherInformationProvider, \
+    TrafficOperationInformationProvider, DrivingBehaviorProvider, RouteSegmentationProvider
 
 PLUGIN_TYPES = {
-    PLUGIN_TYPE_ROAD_INFORMATION: RoadInformationProvider,
-    PLUGIN_TYPE_ROAD_ROUTING: RoadRoutingServiceProvider,
-    PLUGIN_TYPE_VEHICLE_ENGINE_MODEL: VehicleEngineModelProvider,
-    PLUGIN_TYPE_VEHICLE_INFORMATION: VehicleInformationProvider,
+    PLUGIN_TYPE_TRAFFIC_OPERATION_PROVIDER: TrafficOperationInformationProvider,
+    PLUGIN_TYPE_AMBIENT_WEATHER_PROVIDER: AmbientWeatherInformationProvider,
+    PLUGIN_TYPE_DRIVING_BEHAVIOR_PROVIDER: DrivingBehaviorProvider,
+    PLUGIN_TYPE_SPEED_PROFILE_PROVIDER: SpeedProfileProvider,
+    PLUGIN_TYPE_ROAD_ROUTE_PROVIDER: RoadRouteProvider,
+    PLUGIN_TYPE_ROAD_INFRASTRUCTURE_PROVIDER: RoadInfrastructureInformationProvider,
+    PLUGIN_TYPE_ROUTE_SEGMENTATION_PROVIDER: RouteSegmentationProvider,
+    PLUGIN_TYPE_VEHICLE_INFORMATION_PROVIDER: VehicleInformationProvider,
+    PLUGIN_TYPE_VEHICLE_ENERGY_MODEL_PROVIDER: VehicleEnergyModelProvider,
 }
 
 
@@ -23,6 +31,7 @@ class PluginManager:
         self.plugin_classes = {}
         self.plugin_configs = {}
         self.instances = {}
+        self.all_attributes = ['slopes', 'distances']
 
     # ---------------------------------
     # LOAD PLUGIN CLASSES
@@ -32,20 +41,20 @@ class PluginManager:
         # discover plugin classes
         for plugin_type, plugin_configs in self.config.plugins:
 
-            if not isinstance(plugin_configs, list):
-                plugin_configs = [plugin_configs]
+            if plugin_configs:
+                if not isinstance(plugin_configs, list):
+                    plugin_configs = [plugin_configs]
 
-            for cfg in plugin_configs:
+                for cfg in plugin_configs:
+                    module_path = f"route_consumption_estimator.plugins.{plugin_type}.{cfg.name}"
+                    module = importlib.import_module(module_path)
 
-                module_path = f"route_consumption_estimator.plugins.{plugin_type}.{cfg.name}"
-                module = importlib.import_module(module_path)
+                    plugin_class = getattr(module, cfg.class_name)
 
-                plugin_class = getattr(module, cfg.class_name)
+                    plugin_key = f"{plugin_type}:{cfg.name}"
 
-                plugin_key = f"{plugin_type}:{cfg.name}"
-
-                self.plugin_classes[plugin_key] = plugin_class
-                self.plugin_configs[plugin_key] = (plugin_type, cfg)
+                    self.plugin_classes[plugin_key] = plugin_class
+                    self.plugin_configs[plugin_key] = (plugin_type, cfg)
 
         # 2️⃣ resolve dependencies
         ordered_plugins = self._resolve_dependencies()
@@ -64,6 +73,14 @@ class PluginManager:
             # instantiate plugin
             if cfg.config:
                 instance = plugin_class(**deps, config=cfg.config)
+                if 'road_attributes' in cfg.config:
+                    self.all_attributes.extend([x for x in cfg.config['road_attributes']])
+
+                if 'weather_ambient_attributes' in cfg.config:
+                    self.all_attributes.extend([x for x in cfg.config['weather_ambient_attributes']])
+
+                if 'traffic_operation_attributes' in cfg.config:
+                    self.all_attributes.extend([x for x in cfg.config['traffic_operation_attributes']])
             else:
                 instance = plugin_class(**deps)
 
@@ -71,7 +88,7 @@ class PluginManager:
             self.instances[plugin_key] = instance
 
             # register plugin
-            self.registry.register(plugin_type, instance)
+            self.registry.register(plugin_type, cfg.name, instance)
 
     # ---------------------------------
     # DEPENDENCY RESOLUTION
@@ -115,26 +132,3 @@ class PluginManager:
                 return key
 
         return None
-
-""" TODO Previous version
-    def load(self):
-        for plugin_type, plugin_configs in self.config.plugins:
-
-            # ensure list
-            if not isinstance(plugin_configs, list):
-                plugin_configs = [plugin_configs]
-
-            for cfg in plugin_configs:
-                module_path = f"route_consumption_estimator.plugins.{plugin_type}.{cfg.name}"
-                module = importlib.import_module(module_path)
-
-                plugin_class = getattr(module, cfg.class_name)
-                print(plugin_type)
-                print(cfg.config)
-                if cfg.config:
-                    instance = plugin_class(cfg.config)
-                else:
-                    instance = plugin_class()
-
-                self.registry.register(plugin_type, instance)
-"""

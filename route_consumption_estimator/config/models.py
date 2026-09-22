@@ -29,6 +29,7 @@ class SystemConfig(BaseModel):
     database: dict = Field(default={
         "sqlalchemy_database_uri": "${DATABASE_URI}",
         "sqlalchemy_track_modifications": False})
+    output_variables: list = Field(default=["energyConsumption"])
 
 
 # ------------------------
@@ -42,10 +43,15 @@ class SinglePluginConfig(BaseModel):
 
 
 class PluginsConfig(BaseModel):
-    road_routing_services: Optional[List[SinglePluginConfig]] = None
-    road_information: Optional[List[SinglePluginConfig]] = None
-    vehicle_information: Optional[List[SinglePluginConfig]] = None
-    vehicle_engine_model: Optional[List[SinglePluginConfig]] = None
+    road_infrastructure_provider: Optional[List[SinglePluginConfig]] = None
+    traffic_operation_provider: Optional[List[SinglePluginConfig]] = None
+    ambient_weather_provider: Optional[List[SinglePluginConfig]] = None
+    road_route_provider: Optional[List[SinglePluginConfig]] = None
+    driving_behavior_provider: Optional[SinglePluginConfig] = None
+    speed_profile_provider: Optional[SinglePluginConfig] = None
+    route_segmentation_provider: Optional[SinglePluginConfig] = None
+    vehicle_energy_model_provider: Optional[List[SinglePluginConfig]] = None
+    vehicle_information_provider: Optional[List[SinglePluginConfig]] = None
 
 
 # ------------------------

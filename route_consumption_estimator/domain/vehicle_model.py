@@ -31,7 +31,6 @@ class VehicleModel:
         self._ax_trac3 = 0.5  # Maximum longitudinal tensile acceleration in m/s^2 with velocity greater than v2_km_h
 
         self._ax_brake = -2  # Longitudinal braking acceleration in m/s^2
-        # TODO remove non-necessary parameters
         # Definition of engine variables
         self._p_max_kw = p_max_kw  # Maximum engine power in kW
 

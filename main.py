@@ -2,11 +2,27 @@ import flask_monitoringdashboard as dashboard
 
 from route_consumption_estimator import create_app
 
-app = create_app()
+import argparse
+
+parser = argparse.ArgumentParser(
+    description="EcoChassis"
+)
+
+# ./config/config_base.yaml
+parser.add_argument(
+    "config_dir",
+    help="Directory where config is stored"
+)
+
+args = parser.parse_args()
+
+app = create_app(args.config_dir)
 dashboard.config.init_from(file='dashboard/config.cfg')
 dashboard.bind(app)
 
+
 if __name__ == "__main__":
+
     app.run(debug=True, port=5001, host='0.0.0.0')
     # python main.py
 

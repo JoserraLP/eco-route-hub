@@ -1,7 +1,12 @@
 GRAVITY = 9.81
 EARTH_RADIUS = 6371000
 
-PLUGIN_TYPE_ROAD_INFORMATION = "road_information"
-PLUGIN_TYPE_ROAD_ROUTING = "road_routing_services"
-PLUGIN_TYPE_VEHICLE_ENGINE_MODEL = "vehicle_engine_model"
-PLUGIN_TYPE_VEHICLE_INFORMATION = "vehicle_information"
+PLUGIN_TYPE_ROAD_INFRASTRUCTURE_PROVIDER = "road_infrastructure_provider"
+PLUGIN_TYPE_TRAFFIC_OPERATION_PROVIDER = "traffic_operation_provider"
+PLUGIN_TYPE_AMBIENT_WEATHER_PROVIDER = "ambient_weather_provider"
+PLUGIN_TYPE_ROAD_ROUTE_PROVIDER = "road_route_provider"
+PLUGIN_TYPE_DRIVING_BEHAVIOR_PROVIDER = "driving_behavior_provider"
+PLUGIN_TYPE_SPEED_PROFILE_PROVIDER = "speed_profile_provider"
+PLUGIN_TYPE_ROUTE_SEGMENTATION_PROVIDER = "route_segmentation_provider"
+PLUGIN_TYPE_VEHICLE_ENERGY_MODEL_PROVIDER = "vehicle_energy_model_provider"
+PLUGIN_TYPE_VEHICLE_INFORMATION_PROVIDER = "vehicle_information_provider"

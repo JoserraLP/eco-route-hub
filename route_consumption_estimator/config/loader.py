@@ -3,6 +3,8 @@ import re
 import yaml
 from pathlib import Path
 from typing import Any
+
+from route_consumption_estimator import CONFIG_FILE_DIR
 from route_consumption_estimator.config.models import AppConfig
 
 ENV_PATTERN = re.compile(r"\$\{([^}^{]+)\}")
@@ -37,7 +39,7 @@ def _replace_env_vars(obj: Any) -> Any:
     return obj
 
 
-def load_config(path: str = "../config.yaml") -> AppConfig:
+def load_config(path: str = CONFIG_FILE_DIR) -> AppConfig:
 
     config_path = Path(path)
 

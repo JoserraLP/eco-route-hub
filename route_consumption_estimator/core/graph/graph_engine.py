@@ -7,16 +7,15 @@ from route_consumption_estimator.domain import Coords, Node, Segment
 
 # Default values for ways info and maximum speeds
 DEFAULT_WAYS_VALUES = {
-    'distance': 0.0,
-    'slope': 0.0,
-    'max_speed': 50.0,
+    'distances': 0.0,
+    'slopes': 0.0,
+    'maxspeed': 50.0,
     'lanes': 1,
     'highway': '',
     'name': '',
     'surface': '',
     'congestion': None
 }
-
 
 class GraphEngine:
 
@@ -32,6 +31,9 @@ class GraphEngine:
 
         # Last identifier used
         self._last_id = 0
+
+        # Get all stored attributes from configuration
+        self._all_graph_attributes = current_app.config.get("ALL_ATTRIBUTES")
 
     def get_coordinates_id(self, coords: Coords) -> str:
         """
@@ -76,7 +78,7 @@ class GraphEngine:
         :return: None
         """
         # Store relation
-        self._graph.add_edge(source_id, destination_id, **{'max_speed': segment_info.max_speed} | segment_info.extra)
+        self._graph.add_edge(source_id, destination_id, **{'maxspeed': segment_info.maxspeed} | segment_info.extra)
 
     def store_routes_graph(self):
         """
@@ -115,18 +117,15 @@ class GraphEngine:
                 self.create_node(node_info=destination_node)
 
                 # Create the segment info with additional information
-                extra_info = {
-                    "slope": route['slopes'][idx],
-                    "distance": route['distances'][idx],
-                    "lanes": 0
-                }
-                segment_info = Segment(max_speed=route['max_speed'][idx], segment_id=uuid.uuid4(), extra=extra_info)
+                extra_info = {k: route[k][idx] for k in self._all_graph_attributes}
+
+                segment_info = Segment(maxspeed=route['maxspeed'][idx], segment_id=uuid.uuid4(), extra=extra_info)
                 # Store the relation between them
                 self.create_relation(source_id, destination_id, segment_info)
 
     def extend_graph_info(self):
         """
-        Extend graph information related to ways such as congestion, max_speed, lanes, type of highway, name or surface
+        Extend graph information related to ways such as congestion, maxspeed, lanes, type of highway, name or surface
         if not set previously.
 
         :return:
@@ -215,7 +214,7 @@ class GraphEngine:
         for key, value in relation.items():
             # Way ID not processed and congestion will be processed afterwards
             if key != 'segment_id' and key != 'congestion':
-                if value == DEFAULT_WAYS_VALUES[key]:
+                if key in DEFAULT_WAYS_VALUES and value == DEFAULT_WAYS_VALUES[key]:
                     if key in previous_relation:
                         relation[key] = previous_relation[key]
             else:
@@ -245,74 +244,80 @@ class GraphEngine:
         # Get source and target (there should be only one of each)
         sources = [x for x in self._graph.nodes() if self._graph.in_degree(x) == 0]
         targets = [x for x in self._graph.nodes() if self._graph.out_degree(x) == 0]
-        # Key error max_speed
+        # Key error maxspeed
         # Iterate all possible simple paths between source and destination
         simple_paths = nx.all_simple_paths(self._graph, source=sources[0], target=targets[0])
-        # Get the required attributes (max_speed, slope and distance)
+        # Get the attributes
         for simple_path in simple_paths:
             # Define dict for information
-            simple_path_info = {'max_speed': [], 'slope': [], 'distance': []}
+            simple_path_info = {k: [] for k in self._all_graph_attributes}
 
             # Iterate over the edges data
             for edge_data in self._graph.edges(simple_path, data=True):
-                simple_path_info['max_speed'].append(edge_data[2]['max_speed'])
-                simple_path_info['slope'].append(edge_data[2]['slope'])
-                simple_path_info['distance'].append(edge_data[2]['distance'])
+                for attribute in self._all_graph_attributes:
+                    simple_path_info[attribute].append(edge_data[2][attribute])
 
             # Append the data
             routes_information.append(simple_path_info)
 
+        attributes = set()
+
+        for _, _, data in self._graph.edges(data=True):
+            attributes.update(data.keys())
+
+        print(f"Graph edges attributes: {attributes}")
+
         micro_segments_route_information = []
         # Calculate the values for micro segments for each route
         for route_info in routes_information:
-            # Define variables of route info
-            max_speeds, slopes, distances = route_info['max_speed'], route_info['slope'], route_info['distance']
-
             # Define segment start point for the route
             segment_start_point = [0]
             acc_distance = 0
-            # Get the length of the segments e.g. from 'distance'
-            for i in range(1, len(route_info['distance'])):
+            # Get the length of the segments e.g. from 'distances' which is mandatory
+            for i in range(1, len(route_info['distances'])):
                 # Increase the accumulated distance with previous value
-                acc_distance += route_info['distance'][i - 1]
+                acc_distance += route_info['distances'][i - 1]
                 # Add accumulated distance
                 segment_start_point.append(acc_distance)
 
-            micro_segment_speeds, micro_segment_slopes, micro_segment_distances = [], [], []
+            # Do not consider heights as they are used in nodes (not segments)
+            micro_segments_info = {k: [] for k in route_info.keys() if k != 'heights'}
+
             # Iterate over for getting the micro segments
-            for i, distance in enumerate(distances):
+            for i, distance in enumerate(route_info['distances']):
                 # Define instant speed and slope lists
-                instant_speed, instant_slope = [], []
+                instant_info = {k: [] for k in route_info.keys() if k not in ['heights', 'distances']}
 
                 # Calculate num micro segments
                 num_micro_segments = int(distance // delta_s) + 1
 
                 # Iterate over the number of micro segments to store the speeds and processed slopes
                 for _ in range(num_micro_segments):
-                    instant_speed.append(max_speeds[i])
-                    instant_slope.append(slopes[i] / 100)
+                    for k, v in route_info.items():
+                        if k == 'distances' or k == 'heights':
+                            continue
+                        elif k == 'slopes':
+                            instant_info[k].append(v[i]/100)
+                        else:
+                            instant_info[k].append(v[i])
 
-                micro_segment_speeds.append(instant_speed)
-                micro_segment_slopes.append(instant_slope)
-
-            # Calculate the accumulated of the slopes
-            micro_segment_slopes_acc = []
-            for slopes_i in micro_segment_slopes:
-                micro_segment_slopes_acc.append(sum(slopes_i))
+                for k in instant_info.keys():
+                    micro_segments_info[k].append(instant_info[k])
 
             # Calculate micro segments of distance with delta_s
             # First create a list with delta_s for all segments
             micro_segment_distances = [[delta_s for _ in range(int(distance // delta_s))] for i, distance in
-                                       enumerate(distances)]
+                                       enumerate(route_info['distances'])]
             # Iterate over the upper segments and add one new element if there is decimals
             for i, micro_segment in enumerate(micro_segment_distances):
                 # If there are decimals, append the new value
-                if distances[i] % delta_s != 0:
-                    micro_segment.append(distances[i] % delta_s)
+                if route_info['distances'][i] % delta_s != 0:
+                    micro_segment.append(route_info['distances'][i] % delta_s)
 
-            # Flatten micro segment speeds, slopes and distances
-            micro_segment_speeds = [item for sublist in micro_segment_speeds for item in sublist]
-            micro_segment_slopes = [item for sublist in micro_segment_slopes for item in sublist]
+            # Flatten internal info and distances
+            for k, v in micro_segments_info.items():
+                micro_segments_info[k] = [item for sublist in v for item in sublist]
+
             micro_segment_distances = [item for sublist in micro_segment_distances for item in sublist]
 
             # Store the start micro segment points
@@ -323,9 +328,8 @@ class GraphEngine:
                 micro_segment_start_points.append(acc_distance)
 
             # Append micro segment information
-            micro_segments_route_information.append({'start_points': micro_segment_start_points,
-                                                     'max_speeds': micro_segment_speeds,
-                                                     'slopes': micro_segment_slopes})
+            micro_segments_route_information.append({'start_points': micro_segment_start_points} | micro_segments_info)
+
         return micro_segments_route_information
 
     def restart_graph(self):
