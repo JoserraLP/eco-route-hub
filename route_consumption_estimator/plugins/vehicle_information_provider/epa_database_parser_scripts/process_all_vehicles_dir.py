@@ -1,6 +1,6 @@
-"""
-Processes EPA vehicle data files (CSV/XLSX) in a directory, converts units to metric,
-filters fuel types, and aggregates into a single parsed Excel output file.
+"""Processes EPA vehicle data files (CSV/XLSX) in a directory, converts units to SI metric
+
+(N, N/(m/s), N/(m/s)^2), filters fuel types, and aggregates into a single parsed Excel output file.
 """
 
 import logging
@@ -36,7 +36,7 @@ REQUIRED_KEYS = [
 
 
 def process_vehicle_file(file_path: Path) -> pd.DataFrame:
-    """Read and process a single EPA CSV or Excel file."""
+    """Read and process a single EPA CSV or Excel file, converting road-load coefficients to SI units."""
     logger.info(f"Processing file: {file_path.name}")
     try:
         if file_path.suffix.lower() == ".xlsx":
@@ -58,15 +58,23 @@ def process_vehicle_file(file_path: Path) -> pd.DataFrame:
     # Filter columns and copy
     df = df[REQUIRED_KEYS].copy()
 
-    # Unit conversions
+    # Conversion factor from mph to m/s (1 mph = 0.44704 m/s)
+    mph_to_mps = MPH_TO_KPH / 3.6
+
+    # Unit conversions to SI standard
     df["Equivalent Test Weight (kg)"] = df["Equivalent Test Weight (lbs.)"] * LBS_TO_KG
     df["Target Coef A (N)"] = df["Target Coef A (lbf)"] * LBF_TO_N
-    df["Target Coef B (N/kph)"] = (
-        df["Target Coef B (lbf/mph)"] * LBF_TO_N / MPH_TO_KPH
+
+    # B: (lbf / mph) -> N / (m/s)
+    df["Target Coef B (N/mps)"] = (
+        df["Target Coef B (lbf/mph)"] * LBF_TO_N / mph_to_mps
     )
-    df["Target Coef C (N/kph**2)"] = (
-        df["Target Coef C (N/kph**2)"] * LBF_TO_N / (MPH_TO_KPH**2)
+
+    # C: (lbf / mph**2) -> N / (m/s)**2
+    df["Target Coef C (N/mps**2)"] = (
+        df["Target Coef C (lbf/mph**2)"] * LBF_TO_N / (mph_to_mps**2)
     )
+
     df["Rated Power (kW)"] = df["Rated Horsepower"] * HP_TO_KW
 
     # Drop old imperial columns

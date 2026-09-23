@@ -66,8 +66,8 @@ class VehicleInformationRepository(VehicleInformationProvider):
         """
         add_mass = int(additional_mass) if additional_mass is not None else 0
 
-        if add_mass > 0 and hasattr(vehicle, "recalculate_a"):
-            vehicle.recalculate_a(add_mass)
+        if add_mass > 0 and hasattr(vehicle, "recalculate_vehicle_coefficients"):
+            vehicle.recalculate_vehicle_coefficients(add_mass)
 
         unladen_mass = int(getattr(vehicle, "unladen_veh_mass", 0) or 0)
         total_mass = unladen_mass + add_mass

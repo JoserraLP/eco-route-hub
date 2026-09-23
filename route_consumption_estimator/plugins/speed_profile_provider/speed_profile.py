@@ -96,7 +96,7 @@ class SpeedProfile(SpeedProfileProvider):
 
             ax_brake = getattr(self.vehicle, "ax_brake", DEFAULT_AX_BRAKE) or DEFAULT_AX_BRAKE
             if ax_brake == 0:
-                ax_brake = -1.5
+                ax_brake = DEFAULT_AX_BRAKE
 
             v1_ms = (getattr(self.vehicle, "v1_km_h", DEFAULT_V1_KM_H) or DEFAULT_V1_KM_H) / 3.6
             v2_ms = (getattr(self.vehicle, "v2_km_h", DEFAULT_V2_KM_H) or DEFAULT_V2_KM_H) / 3.6
@@ -220,13 +220,12 @@ class SpeedProfile(SpeedProfileProvider):
             List[float]: Resistance force series in Newtons.
         """
         self.resistances = []
-        speed_km_h = [speed * 3.6 for speed in self.speed_m_s]
 
         a_coeff = getattr(self.vehicle, "A", 0.0) or 0.0
         b_coeff = getattr(self.vehicle, "B", 0.0) or 0.0
         c_coeff = getattr(self.vehicle, "C", 0.0) or 0.0
 
-        for v in speed_km_h:
+        for v in self.speed_m_s:
             resistance = a_coeff + b_coeff * v + c_coeff * (v ** 2)
             self.resistances.append(resistance)
 

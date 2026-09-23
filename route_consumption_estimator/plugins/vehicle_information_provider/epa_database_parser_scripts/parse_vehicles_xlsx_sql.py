@@ -1,5 +1,6 @@
-"""
-Generates an SQL script to insert parsed vehicle data into MySQL/MariaDB database.
+"""Generates an SQL script to insert parsed vehicle data into MySQL/MariaDB database
+
+with road-load coefficients converted to SI units (N, N/(m/s), N/(m/s)^2).
 """
 
 import logging
@@ -27,7 +28,10 @@ def escape_sql_str(value: Any) -> str:
 
 
 def generate_sql_insert_script(input_path: Path, output_path: Path) -> None:
-    """Read parsed Excel data and produce a safe SQL INSERT script."""
+    """Read parsed Excel data, convert road-load coefficients to SI units,
+
+    and produce a safe SQL INSERT script.
+    """
     if not input_path.exists():
         logger.error(f"Input file not found: {input_path}")
         return
@@ -36,30 +40,37 @@ def generate_sql_insert_script(input_path: Path, output_path: Path) -> None:
     values_tuples = []
 
     for _, row in df.iterrows():
-        make = str(row.get('Represented Test Veh Make', '')).strip()
-        model = str(row.get('Represented Test Veh Model', '')).strip()
+        make = str(row.get("Represented Test Veh Make", "")).strip()
+        model = str(row.get("Represented Test Veh Model", "")).strip()
         raw_name = f"{make}_-_{model}"
         name = escape_sql_str(raw_name)
 
-        engine = str(row.get('Test Fuel Type Description', '')).upper().strip()
+        engine = str(row.get("Test Fuel Type Description", "")).upper().strip()
 
-        if engine == 'DIESEL':
+        if engine == "DIESEL":
             conversion = DEFAULT_DIESEL_CONVERSION
-        elif engine == 'GASOLINE':
+        elif engine == "GASOLINE":
             conversion = DEFAULT_GASOLINE_CONVERSION
         else:
             conversion = -1.0
 
-        mass = float(row.get('Equivalent Test Weight (kg)', 0.0) or 0.0)
-        pmaxkw = float(row.get('Rated Power (kW)', 0.0) or 0.0)
-        a = float(row.get('Target Coef A (N)', 0.0) or 0.0)
-        b = float(row.get('Target Coef B (N/kph)', 0.0) or 0.0)
-        c = float(row.get('Target Coef C (N/kph**2)', 0.0) or 0.0)
+        mass = float(row.get("Equivalent Test Weight (kg)", 0.0) or 0.0)
+        pmaxkw = float(row.get("Rated Power (kW)", 0.0) or 0.0)
+
+        # Read raw coefficients from Excel
+        a_si = float(row.get("Target Coef A (N)", 0.0) or 0.0)
+        b_kph = float(row.get("Target Coef B (N/kph)", 0.0) or 0.0)
+        c_kph = float(row.get("Target Coef C (N/kph**2)", 0.0) or 0.0)
+
+        # Convert coefficients from N/(km/h) and N/(km/h)^2 to SI units: N/(m/s) and N/(m/s)^2
+        b_si = b_kph * 3.6
+        c_si = c_kph * 12.96
+
         factor = DEFAULT_VEHICLE_RF
 
         tuple_str = (
             f"('{name}', '{engine}', {mass:.2f}, {pmaxkw:.2f}, "
-            f"{conversion:.2f}, {factor:.4f}, {a:.4f}, {b:.4f}, {c:.4f}, '', '')"
+            f"{conversion:.2f}, {factor:.4f}, {a_si:.4f}, {b_si:.4f}, {c_si:.4f}, '', '')"
         )
         values_tuples.append(tuple_str)
 

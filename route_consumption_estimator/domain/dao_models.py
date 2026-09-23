@@ -113,9 +113,14 @@ class VehicleDAO(db.Model):
     def __repr__(self) -> str:
         return f'<Vehicle {self.VehicleID} {self.Name} {self.MotorType}>'
 
-    def recalculate_a(self, additional_mass: float) -> None:
+    def recalculate_vehicle_coefficients(self, additional_mass: float) -> None:
         """Recalculate resistance parameter A considering passenger and load mass."""
         self.A = float(self.ResistanceFactor) * (float(self.UnladenVehMass) + float(additional_mass)) * GRAVITY
+        if self.B == 0.0:
+            # Empirical estimation for light-duty vehicles (EPA standard conversion):
+            # B is typically proportional to vehicle mass (~0.002 to 0.005 N / (m/s) per kg)
+            # Or estimated from drivetrain viscous drag:
+            self.B = 0.003 * (float(self.unladen_veh_mass) + float(additional_mass) / 1000)
 
 
 class VehicleDAOSchema(ma.Schema):

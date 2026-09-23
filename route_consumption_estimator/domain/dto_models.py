@@ -46,9 +46,14 @@ class VehicleDTO:
     url: Optional[str] = ""
     image_url: Optional[str] = ""
 
-    def recalculate_a(self, additional_mass: float) -> None:
+    def recalculate_vehicle_coefficients(self, additional_mass: float) -> None:
         """Recalculate resistance parameter A with added passenger/payload mass."""
         self.A = float(self.resistance_factor) * (float(self.unladen_veh_mass) + float(additional_mass)) * GRAVITY
+        if self.B == 0.0:
+            # Empirical estimation for light-duty vehicles (EPA standard conversion):
+            # B is typically proportional to vehicle mass (~0.002 to 0.005 N / (m/s) per kg)
+            # Or estimated from drivetrain viscous drag:
+            self.B = 0.003 * (float(self.unladen_veh_mass) + float(additional_mass) / 1000.0)
 
 
 @dataclass
