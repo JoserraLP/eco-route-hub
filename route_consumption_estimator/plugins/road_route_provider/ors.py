@@ -1,73 +1,147 @@
-from typing import Dict, Any
+"""
+OpenRouteService (ORS) routing provider plugin implementation.
+
+Calculates vehicle routes, geometry polylines, distances, and durations 
+using OpenRouteService API or self-hosted ORS instances.
+"""
+
+import logging
+import os
+from typing import Any, Dict, List, Optional
 
 import requests
-from openrouteservice import Client, convert
-from openrouteservice.directions import directions
+
+try:
+    from openrouteservice import Client, convert
+    from openrouteservice.directions import directions
+    from openrouteservice.exceptions import ApiError
+except ImportError:
+    Client = None
+    convert = None
+    directions = None
+    ApiError = Exception
 
 from route_consumption_estimator.domain.graph_models import Coords
-from route_consumption_estimator.interfaces import RoadRouteProvider
+from route_consumption_estimator.interfaces.road_route_provider import (
+    RoadRouteProvider,
+)
 
-ORS_ENDPOINT = "http://localhost:8081/ors"
-ORS_QUERY_PARAMS = {"share_factor": 0.6, "target_count": 3, "weight_factor": 0.8}
+logger = logging.getLogger(__name__)
+
+DEFAULT_ORS_ENDPOINT: str = "http://localhost:8081/ors"
+DEFAULT_ORS_PARAMS: Dict[str, Any] = {
+    "share_factor": 0.6,
+    "target_count": 3,
+    "weight_factor": 0.8,
+}
 
 
 class OpenRouteService(RoadRouteProvider):
     """
-    Open Route Service requestor
+    OpenRouteService client for route calculation and alternative path planning.
+
+    Attributes:
+        api_key (Optional[str]): OpenRouteService API authentication key.
+        client (Optional[Client]): OpenRouteService SDK client instance.
+        timeout (float): HTTP request timeout limit in seconds.
     """
 
-    def __init__(self, config: Dict[str, Any]):
-        endpoint = config.get("endpoint", ORS_ENDPOINT)
-        super().__init__(params=config.get("params", ORS_QUERY_PARAMS),
-                         endpoint=endpoint)
-        self._client = Client(base_url=endpoint)
-        self._routes = []
+    def __init__(self, config: Dict[str, Any]) -> None:
+        endpoint = config.get("endpoint", DEFAULT_ORS_ENDPOINT)
+        params = config.get("params", DEFAULT_ORS_PARAMS)
+        super().__init__(params=params, endpoint=endpoint)
 
-    def get_routes(self, coords: list = None) -> list:
-        # Define source and target to be the same over all routes
+        self.api_key: Optional[str] = (
+            config.get("api_key")
+            or os.environ.get("ORS_KEY")
+            or os.environ.get("OPENROUTESERVICE_KEY")
+        )
+        self.timeout: float = config.get("timeout", 10.0)
+
+        if Client is not None:
+            client_kwargs: Dict[str, Any] = {}
+            if self.api_key:
+                client_kwargs["key"] = self.api_key
+            if endpoint:
+                client_kwargs["base_url"] = endpoint
+
+            self.client = Client(**client_kwargs)
+        else:
+            self.client = None
+            logger.warning(
+                "The 'openrouteservice' library is not installed. "
+                "Install it using 'pip install openrouteservice'."
+            )
+
+    def get_routes(self, coords: List[Coords]) -> List[Dict[str, Any]]:
+        """
+        Calculate route options connecting an ordered sequence of coordinates.
+
+        Args:
+            coords (List[Coords]): Ordered list of waypoints (minimum origin and destination).
+
+        Returns:
+            List[Dict[str, Any]]: List of preprocessed route payloads.
+        """
+        if not coords or len(coords) < 2:
+            logger.warning(
+                "OpenRouteService requires at least two coordinates (origin and destination)."
+            )
+            self.routes = []
+            return self.routes
+
+        if self.client is None:
+            logger.error("OpenRouteService SDK client is not initialized.")
+            self.routes = []
+            return self.routes
+
         common_source = coords[0]
         common_target = coords[-1]
 
-        # Swap order of the coordinates (longitude, latitude)
-        coords = [[item.lon, item.lat] for item in coords]
+        # ORS API requires coordinates in [longitude, latitude] order
+        ors_coords = [[coord.lon, coord.lat] for coord in coords]
 
-        # If there is a timeout, then return an empty list
+        preprocessed_routes: List[Dict[str, Any]] = []
+
         try:
-            # Perform query using params if they exists
+            kwargs: Dict[str, Any] = {"coordinates": ors_coords}
             if self.params:
-                routes = directions(self._client, coords, alternative_routes=self.params)['routes']
-            else:
-                routes = directions(self._client, coords)['routes']
+                kwargs["alternative_routes"] = self.params
 
-            # Create a list for the preprocessed routes
-            preprocessed_routes = []
+            response = directions(self.client, **kwargs)
+            routes = response.get("routes", [])
 
-            # Check if there exists the routes
-            if routes:
+            for route in routes:
+                raw_geometry = route.get("geometry")
 
-                for route in routes:
-                    # Decode each route polyline
-                    route['geometry'] = convert.decode_polyline(route['geometry'])
+                # Decode polyline string to [lon, lat] points
+                if isinstance(raw_geometry, str) and convert:
+                    decoded_geo = convert.decode_polyline(raw_geometry)
+                    raw_coords = decoded_geo.get("coordinates", [])
+                elif isinstance(raw_geometry, dict):
+                    raw_coords = raw_geometry.get("coordinates", [])
+                else:
+                    raw_coords = []
 
-                    # Parse coordinates to Coords class
-                    route['geometry']['coordinates'] = [Coords(lat=item[1], lon=item[0]) for item in
-                                                        route['geometry']['coordinates']]
+                # Re-map [lon, lat] back to domain Coords(lat, lon)
+                route_coords = [
+                    Coords(lat=item[1], lon=item[0]) for item in raw_coords
+                ]
 
-                    preprocessed_route = {
-                        'route_coordinates': route['geometry']['coordinates'],
-                        'common_source': common_source,
-                        'common_target': common_target,
-                        'router_distance': route['summary']['distance'],
-                        'router_duration': route['summary']['duration']
-                    }
+                summary = route.get("summary", {})
+                preprocessed_route = {
+                    "route_coordinates": route_coords,
+                    "common_source": common_source,
+                    "common_target": common_target,
+                    "router_distance": summary.get("distance", 0.0),
+                    "router_duration": summary.get("duration", 0.0),
+                }
+                preprocessed_routes.append(preprocessed_route)
 
-                    # Append the preprocessed route
-                    preprocessed_routes.append(preprocessed_route)
+        except (ApiError, requests.RequestException) as e:
+            logger.error(f"Error retrieving routes from ORS service: {e}")
+        except Exception as e:
+            logger.error(f"Unexpected error parsing ORS route response: {e}")
 
-            # Update the routes with the parsed geometries
-            self._routes = preprocessed_routes
-        except requests.exceptions.Timeout:
-            print(f"There is a timeout retrieving routes from ORS service...")
-            self._routes = []
-
-        return self._routes
+        self.routes = preprocessed_routes
+        return self.routes

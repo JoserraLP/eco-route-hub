@@ -1,72 +1,110 @@
+"""
+OSRM (Open Source Routing Machine) routing provider plugin implementation.
+
+Calculates vehicle routes, GeoJSON geometries, distances, and durations 
+using an OSRM engine server instance.
+"""
+
+import logging
 import os
-from typing import Dict, Any
+from typing import Any, Dict, List
 
 import requests
 
 from route_consumption_estimator.domain.graph_models import Coords
-from route_consumption_estimator.interfaces import RoadRouteProvider
+from route_consumption_estimator.interfaces.road_route_provider import (
+    RoadRouteProvider,
+)
 
-LINUX_ENDPOINT = "localhost"
-WINDOWS_ENDPOINT = "127.0.0.1"
-OSRM_ENDPOINT = f"http://{WINDOWS_ENDPOINT if os.name == 'nt' else LINUX_ENDPOINT}:5002/route/v1/driving/"
-OSRM_QUERY_PARAMS = {
+logger = logging.getLogger(__name__)
+
+# Default host assignment based on target operating system
+_DEFAULT_HOST: str = "127.0.0.1" if os.name == "nt" else "localhost"
+DEFAULT_OSRM_ENDPOINT: str = f"http://{_DEFAULT_HOST}:5002/route/v1/driving"
+
+DEFAULT_OSRM_PARAMS: Dict[str, Any] = {
     "alternatives": 3,
     "geometries": "geojson",
     "annotations": "nodes",
-    "overview": "full"  # More precise routing coordinates
+    "overview": "full",  # Full overview returns high-precision route geometries
 }
 
 
 class OSRM(RoadRouteProvider):
     """
-    Open Source Routing Machine service requestor
+    Open Source Routing Machine (OSRM) service client for route calculation.
+
+    Attributes:
+        timeout (float): Request timeout limit in seconds.
     """
 
-    def __init__(self, config: Dict[str, Any]):
-        super().__init__(params=config.get("params", OSRM_QUERY_PARAMS),
-                         endpoint=config.get("endpoint", OSRM_ENDPOINT),
-                         client=None)
-        self._routes = []
+    def __init__(self, config: Dict[str, Any]) -> None:
+        endpoint = config.get("endpoint", DEFAULT_OSRM_ENDPOINT)
+        params = {**DEFAULT_OSRM_PARAMS, **config.get("params", {})}
+        super().__init__(params=params, endpoint=endpoint, client=None)
 
-    def get_routes(self, coords: list = None) -> list:
-        # Define source and target to be the same over all routes
+        self.timeout: float = config.get("timeout", 10.0)
+
+    def get_routes(self, coords: List[Coords]) -> List[Dict[str, Any]]:
+        """
+        Calculate route options connecting an ordered sequence of coordinates.
+
+        Args:
+            coords (List[Coords]): Ordered list of waypoints (minimum origin and destination).
+
+        Returns:
+            List[Dict[str, Any]]: List of preprocessed route payloads.
+        """
+        if not coords or len(coords) < 2:
+            logger.warning(
+                "OSRM requires at least two coordinates (origin and destination)."
+            )
+            self.routes = []
+            return self.routes
+
         common_source = coords[0]
         common_target = coords[-1]
-        # Perform query
-        # If there is a timeout, then return an empty list
+
+        # OSRM REST API format: /route/v1/driving/{lon1},{lat1};{lon2},{lat2}
+        coords_str = ";".join(f"{coord.lon},{coord.lat}" for coord in coords)
+        base_endpoint = self.endpoint.rstrip("/")
+        request_url = f"{base_endpoint}/{coords_str}"
+
+        preprocessed_routes: List[Dict[str, Any]] = []
+
         try:
-            response = requests.get(self.endpoint +
-                                    ";".join(f"{coord.lon},{coord.lat}" for coord in coords),
-                                    params=self.params)
+            response = requests.get(
+                request_url, params=self.params, timeout=self.timeout
+            )
 
-            # Create a list for the preprocessed routes
-            preprocessed_routes = []
-
-            # Check if there exists the response
-            if response:
-                # Store the routes from response
-                routes = response.json()['routes']
+            if response.status_code == 200:
+                data = response.json()
+                routes = data.get("routes", [])
 
                 for route in routes:
-                    # Parse coordinates to Coords class
-                    route['geometry']['coordinates'] = [Coords(lat=item[1], lon=item[0]) for item in
-                                                        route['geometry']['coordinates']]
+                    # GeoJSON geometry stores points as [longitude, latitude]
+                    raw_coords = route.get("geometry", {}).get("coordinates", [])
+                    route_coords = [
+                        Coords(lat=item[1], lon=item[0]) for item in raw_coords
+                    ]
 
                     preprocessed_route = {
-                        'route_coordinates': route['geometry']['coordinates'],
-                        'common_source': common_source,
-                        'common_target': common_target,
-                        'router_distance': route['distance'],
-                        'router_duration': route['duration']
+                        "route_coordinates": route_coords,
+                        "common_source": common_source,
+                        "common_target": common_target,
+                        "router_distance": route.get("distance", 0.0),
+                        "router_duration": route.get("duration", 0.0),
                     }
-
-                    # Append the preprocessed route
                     preprocessed_routes.append(preprocessed_route)
+            else:
+                logger.warning(
+                    f"OSRM returned status code {response.status_code}: {response.text}"
+                )
 
-            # Update the routes with the parsed geometries
-            self._routes = preprocessed_routes
-        except requests.exceptions.Timeout:
-            print(f"There is a timeout retrieving routes from OSRM service...")
-            self._routes = []
+        except requests.RequestException as e:
+            logger.error(f"Error requesting routes from OSRM service: {e}")
+        except (KeyError, ValueError, TypeError) as e:
+            logger.error(f"Unexpected error parsing OSRM response payload: {e}")
 
-        return self._routes
+        self.routes = preprocessed_routes
+        return self.routes

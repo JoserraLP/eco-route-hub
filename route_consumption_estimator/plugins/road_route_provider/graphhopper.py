@@ -1,84 +1,119 @@
+"""
+GraphHopper routing provider plugin implementation.
+
+Calculates vehicle routes, geometries, distances, and travel times 
+using the GraphHopper Routing API.
+"""
+
+import logging
 import os
-from typing import Dict, Any
+from typing import Any, Dict, List, Optional
 
 import requests
 
 from route_consumption_estimator.domain.graph_models import Coords
-from route_consumption_estimator.interfaces import RoadRouteProvider
+from route_consumption_estimator.interfaces.road_route_provider import (
+    RoadRouteProvider,
+)
 
-GRAPHHOPPER_ENDPOINT = "https://graphhopper.com/api/1/route"
-GRAPHHOPPER_QUERY_PARAMS = {
+logger = logging.getLogger(__name__)
+
+DEFAULT_GRAPHHOPPER_ENDPOINT: str = "https://graphhopper.com/api/1/route"
+DEFAULT_GRAPHHOPPER_PARAMS: Dict[str, Any] = {
     "profile": "car",
-    "point": '',
     "locale": "en",
-    "elevation": "false",
-    "optimize": "false",
-    "instructions": "true",
-    "calc_points": "true",
-    "debug": "false",
-    "points_encoded": "false",
-    "ch.disable": "true",
-    "heading": "0",
-    "heading_penalty": "120",
-    "pass_through": "false",
-    "round_trip.distance": "10000",
-    "round_trip.seed": "0",
-    "key": os.environ.get("GRAPHHOPPER_KEY")
+    "elevation": False,
+    "optimize": False,
+    "instructions": True,
+    "calc_points": True,
+    "debug": False,
+    "points_encoded": False,
+    "ch.disable": True,
+    "heading": 0,
+    "heading_penalty": 120,
+    "pass_through": False,
 }
 
 
 class GraphHopper(RoadRouteProvider):
     """
-    GraphHopper service requestor
+    GraphHopper service requestor for route calculation.
+
+    Attributes:
+        api_key (Optional[str]): GraphHopper API authentication key.
+        timeout (float): Request timeout limit in seconds.
     """
 
-    def __init__(self, config: Dict[str, Any]):
-        super().__init__(params=config.get("params", GRAPHHOPPER_QUERY_PARAMS),
-                         endpoint=config.get("endpoint", GRAPHHOPPER_ENDPOINT),
-                         client=None)
-        self._routes = []
+    def __init__(self, config: Dict[str, Any]) -> None:
+        endpoint = config.get("endpoint", DEFAULT_GRAPHHOPPER_ENDPOINT)
+        params = {**DEFAULT_GRAPHHOPPER_PARAMS, **config.get("params", {})}
+        super().__init__(params=params, endpoint=endpoint, client=None)
 
-    def get_routes(self, coords: list = None) -> list:
-        # Define source and target to be the same over all routes
+        self.api_key: Optional[str] = config.get("api_key") or os.environ.get(
+            "GRAPHHOPPER_KEY"
+        )
+        self.timeout: float = config.get("timeout", 10.0)
+
+    def get_routes(self, coords: List[Coords]) -> List[Dict[str, Any]]:
+        """
+        Calculate route options connecting an ordered sequence of coordinates.
+
+        Args:
+            coords (List[Coords]): Ordered list of waypoints (minimum origin and destination).
+
+        Returns:
+            List[Dict[str, Any]]: List of preprocessed route payloads.
+        """
+        if not coords or len(coords) < 2:
+            logger.warning(
+                "GraphHopper requires at least two coordinates (origin and destination)."
+            )
+            self.routes = []
+            return self.routes
+
         common_source = coords[0]
         common_target = coords[-1]
-        # Set the coordinates as the params
-        self.params['point'] = [f"{coord.lat},{coord.lon}" for coord in coords]
 
-        # If there is a timeout, then return an empty list
+        # Build isolated request parameters per query to prevent mutating shared state
+        request_params = self.params.copy()
+        request_params["point"] = [f"{coord.lat},{coord.lon}" for coord in coords]
+
+        if self.api_key:
+            request_params["key"] = self.api_key
+
+        preprocessed_routes: List[Dict[str, Any]] = []
+
         try:
-            # Perform query
-            response = requests.get(self.endpoint, params=self.params)
+            response = requests.get(
+                self.endpoint, params=request_params, timeout=self.timeout
+            )
 
-            # Create a list for the preprocessed routes
-            preprocessed_routes = []
-
-            # Check if there exists the response
             if response.status_code == 200:
-                # Store the routes from response
-                routes = response.json()['paths']
+                data = response.json()
+                paths = data.get("paths", [])
 
-                for route in routes:
-                    # Parse coordinates to Coords class
-                    route['points']['coordinates'] = [Coords(lat=item[1], lon=item[0]) for item in
-                                                      route['points']['coordinates']]
+                for path in paths:
+                    # GraphHopper GeoJSON returns coordinates in [lon, lat] format
+                    raw_points = path.get("points", {}).get("coordinates", [])
+                    route_coords = [
+                        Coords(lat=point[1], lon=point[0]) for point in raw_points
+                    ]
 
                     preprocessed_route = {
-                        'route_coordinates': route['points']['coordinates'],
-                        'common_source': common_source,
-                        'common_target': common_target,
-                        'router_distance': route['distance'],
-                        'router_duration': route['time'] / 1000.0
+                        "route_coordinates": route_coords,
+                        "common_source": common_source,
+                        "common_target": common_target,
+                        "router_distance": path.get("distance", 0.0),
+                        "router_duration": path.get("time", 0.0) / 1000.0,  # ms to seconds
                     }
-
-                    # Append the processed route
                     preprocessed_routes.append(preprocessed_route)
+            else:
+                logger.warning(
+                    f"GraphHopper status {response.status_code}: {response.text}"
+                )
 
-            # Update the routes with the parsed geometries
-            self._routes = preprocessed_routes
+        except requests.RequestException as e:
+            logger.error(f"Error requesting route from GraphHopper service: {e}")
 
-        except requests.exceptions.Timeout:
-            print(f"There is a timeout retrieving routes from GraphHopper service...")
-            self._routes = []
-
-        return self._routes
+        self.routes = preprocessed_routes
+        return self.routes
