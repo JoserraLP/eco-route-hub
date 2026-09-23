@@ -1,233 +1,282 @@
+"""
+Speed profile estimation plugin module.
+
+Simulates vehicle kinematics along route micro-segments considering speed limits,
+traction profiles, braking limits, and road geometry (slopes).
+"""
+
+import logging
+from typing import List, Optional
+
+import numpy as np
+
 from route_consumption_estimator.domain.constants import GRAVITY
 from route_consumption_estimator.domain.route_model import RouteModel
 from route_consumption_estimator.domain.vehicle_model import VehicleModel
 from route_consumption_estimator.interfaces import SpeedProfileProvider
 
+logger = logging.getLogger(__name__)
 
-def calculate_acceleration_factor(speed_t: float, speed_limit: float):
+MIN_SPEED_MS = 0.1  # Minimum threshold speed in m/s (~0.36 km/h) to prevent division by zero
+MAX_SIMULATION_STEPS_PER_SEGMENT = 10000
+DEFAULT_ACCELERATION_LIMIT = 2.5
+DEFAULT_SPEED = 50.0
+DEFAULT_V1_KM_H = 50.0
+DEFAULT_V2_KM_H = 100.0
+DEFAULT_AX_BRAKE = -2.0
+MAX_SLOPE_VARIANCE = 0.2
+
+
+def calculate_acceleration_factor(speed_t: float, speed_limit: float) -> float:
     """
-    Calculate acceleration factor based on speed at a given instant and the limit
+    Calculate acceleration factor based on proximity to the target speed limit.
 
-    :param speed_t: speed value at a given instant
-    :type speed_t: float
-    :param speed_limit: speed limit value
-    :type speed_limit: float
+    Args:
+        speed_t (float): Current instantaneous speed in m/s.
+        speed_limit (float): Speed limit in m/s.
 
-    :return: acceleration factor
+    Returns:
+        float: Acceleration smoothing factor (0.25, 0.5, or 1.0).
     """
     difference = abs(speed_t - speed_limit)
-    if difference < 1:
+    if difference < 1.0:
         return 0.25
-    elif difference < 3:
+    elif difference < 3.0:
         return 0.5
-    else:
-        return 1
+    return 1.0
 
 
 class SpeedProfile(SpeedProfileProvider):
     """
-    Class representing the relation between the route and a given vehicle
+    Plugin provider for simulating vehicle kinematic speed profiles over route segments.
     """
 
-    def __init__(self, route: RouteModel = None, vehicle: VehicleModel = None):
-        # Store the number of segments
+    def __init__(
+            self,
+            route: Optional[RouteModel] = None,
+            vehicle: Optional[VehicleModel] = None,
+    ) -> None:
         super().__init__(route, vehicle)
 
-    def estimate_speed_profile(self) -> list:
+    def estimate_speed_profile(self) -> List[float]:
         """
-        Estimate speed profile
+        Estimate instantaneous vehicle speed profile (m/s) over time for the target route.
 
-        :return:
+        Returns:
+            List[float]: Series of instantaneous vehicle speeds in m/s.
         """
-        # Iterate over the segments
-        for i in range(0, len(self.route.segment_start_point) - 1):
-            # Coincides with the limit speed of the following section
-            if i < self.num_segments:
-                # Segment end point
+        if not self.route or not self.route.segment_start_point:
+            logger.warning("Route model is empty or uninitialized in SpeedProfile.")
+            return self.speed_m_s
+
+        maxspeeds = self.route.additional_info.get("maxspeed", [])
+        slopes = self.route.additional_info.get("slopes", [])
+        num_points = len(self.route.segment_start_point)
+
+        for i in range(0, num_points - 1):
+            # Resolve segment destination and target speed limit
+            if i < getattr(self, "_num_segments", num_points - 1) and i + 1 < len(maxspeeds):
                 segment_end_point = self.route.segment_start_point[i + 1]
-                # Final speed of the segment (m/s) is the next one
-                final_speed = self.route.additional_info['maxspeed'][i + 1] / 3.6
-
-            # Last segment, arrival at destination
+                final_speed = maxspeeds[i + 1] / 3.6
             else:
-                # Segment end point
                 segment_end_point = max(self.route.segment_start_point)
-                # Final speed of the segment (m/s) is the actual one
-                final_speed = self.route.additional_info['maxspeed'][i] / 3.6
+                final_speed = maxspeeds[i] / 3.6 if i < len(maxspeeds) else (DEFAULT_SPEED / 3.6)
 
-            # Segment length (m)
             segment_length = segment_end_point - self.route.segment_start_point[i]
-            self.segment_length[i] = segment_length
-            # Calculation of speed limit
-            speed_limit = final_speed
+            if i < len(self.segment_length):
+                self.segment_length[i] = segment_length
+            else:
+                self.segment_length = np.append(self.segment_length, segment_length)
 
-            self.delta_t.append(float(segment_length / speed_limit))
+            speed_limit = max(final_speed, MIN_SPEED_MS)
+            delta_t_segment = segment_length / speed_limit
+            self.delta_t.append(delta_t_segment)
 
-            # The kinematics of the vehicle is calculated at each simulation step.
-            while self.space[self.step - 1] <= segment_end_point:
-                self.slope_t.append(self.route.additional_info['slopes'][i])
+            current_slope = slopes[i] if i < len(slopes) else 0.0
+
+            ax_brake = getattr(self.vehicle, "ax_brake", DEFAULT_AX_BRAKE) or DEFAULT_AX_BRAKE
+            if ax_brake == 0:
+                ax_brake = -1.5
+
+            v1_ms = (getattr(self.vehicle, "v1_km_h", DEFAULT_V1_KM_H) or DEFAULT_V1_KM_H) / 3.6
+            v2_ms = (getattr(self.vehicle, "v2_km_h", DEFAULT_V2_KM_H) or DEFAULT_V2_KM_H) / 3.6
+
+            sim_steps = 0
+            while (
+                    self.space[self.step - 1] <= segment_end_point
+                    and sim_steps < MAX_SIMULATION_STEPS_PER_SEGMENT
+            ):
+                sim_steps += 1
+                self.slope_t.append(current_slope)
+
+                current_speed = self.speed_m_s[self.step - 1]
+
                 # Braking distance calculation
-                brake_distance = (final_speed ** 2 - self.speed_m_s[self.step - 1] ** 2) / (
-                        2 * self.vehicle.ax_brake)
+                brake_distance = (final_speed ** 2 - current_speed ** 2) / (2 * ax_brake)
 
-                # Determination of state (acceleration / constant speed / braking)
-                # If it is in acceleration, state=1, so a=ax_trac
-                # If it has reached the maximum speed of the section, state=0. In this case the speed is constant and
-                # a=0.
-                # If it must start braking, the state=-1, so a=ax_brake
-
-                # Condition of speed greater than the final speed. In this case it makes sense that braking may exist.
-                if self.speed_m_s[self.step - 1] >= final_speed:
-                    #  You do not have to brake, the current position indicates that you have not reached the braking
-                    #  starting point.
+                # Determine kinematic acceleration state
+                if current_speed >= final_speed:
                     if self.space[self.step - 1] < (segment_end_point - brake_distance):
-                        # Definition of state-dependent acceleration
-                        # If you do not reach the speed limit, you can speed up
-                        if self.speed_m_s[self.step - 1] < speed_limit:
-                            # Acceleration is smoothed, in case of being close to the speed limit.
-                            factor = calculate_acceleration_factor(self.speed_m_s[self.step - 1], speed_limit)
-                            # Calculate acceleration
-                            if self.speed_m_s[self.step - 1] < (self.vehicle.v1_km_h / 3.6):
-                                a = factor * self.ax_trac[1]
-                            elif self.speed_m_s[self.step - 1] > (self.vehicle.v2_km_h / 3.6):
-                                a = factor * self.ax_trac[3]
-                            else:
-                                a = factor * self.ax_trac[2]
-                            # State = 1 -> acceleration
+                        if current_speed < speed_limit:
+                            factor = calculate_acceleration_factor(current_speed, speed_limit)
+                            a = self._get_traction_acceleration(current_speed, v1_ms, v2_ms, factor)
                             self.state.append(1)
                         else:
-                            # If the speed limit of the section has been reached, the speed is kept constant,
-                            # This implies that the acceleration is zero.
-                            if self.speed_m_s[self.step - 1] > speed_limit:
-                                # In this case you have to brake up to the maximum speed of the section
-                                factor = calculate_acceleration_factor(self.speed_m_s[self.step - 1], speed_limit)
-                                # Calculate acceleration
-                                a = factor * self.vehicle.ax_brake
-                                # State = -1 -> braking
+                            if current_speed > speed_limit:
+                                factor = calculate_acceleration_factor(current_speed, speed_limit)
+                                a = factor * ax_brake
                                 self.state.append(-1)
                             else:
-                                # Acceleration equal to 0
-                                a = 0
-                                # State = 0 -> Maximum speed reached
+                                a = 0.0
                                 self.state.append(0)
-                    # It is in braking
                     else:
-                        # Acceleration is smoothed, in case of being close to the speed limit.
-                        factor = calculate_acceleration_factor(self.speed_m_s[self.step - 1], speed_limit)
-                        # Calculate acceleration
-                        a = factor * self.vehicle.ax_brake
-                        # State = -1 -> braking
+                        factor = calculate_acceleration_factor(current_speed, speed_limit)
+                        a = factor * ax_brake
                         self.state.append(-1)
-                # In case of speed(self.step)<final_speed: No braking
                 else:
-                    # Definition of acceleration as a function of sub-segment
-                    if self.speed_m_s[self.step - 1] < speed_limit:
-                        # Acceleration is smoothed, in case of being close to the speed limit.
-                        factor = calculate_acceleration_factor(self.speed_m_s[self.step - 1], speed_limit)
-                        # Calculate acceleration
-                        if self.speed_m_s[self.step - 1] < (self.vehicle.v1_km_h / 3.6):
-                            a = factor * self.ax_trac[1]
-                        elif self.speed_m_s[self.step - 1] > (self.vehicle.v2_km_h / 3.6):
-                            a = factor * self.ax_trac[3]
-                        else:
-                            a = factor * self.ax_trac[2]
-                        # State = 1 -> acceleration
+                    if current_speed < speed_limit:
+                        factor = calculate_acceleration_factor(current_speed, speed_limit)
+                        a = self._get_traction_acceleration(current_speed, v1_ms, v2_ms, factor)
                         self.state.append(1)
-                    # Speed limit case
                     else:
-                        # Acceleration equal to 0
-                        a = 0
-                        # State = 0 -> Maximum speed reached
+                        a = 0.0
                         self.state.append(0)
 
-                # Acceleration value is updated
-                if a > self.acceleration_limit:
-                    a = self.acceleration_limit
+                # Bound acceleration to maximum physical limits
+                accel_limit = getattr(self, "acceleration_limit", DEFAULT_ACCELERATION_LIMIT)
+                if a > accel_limit:
+                    a = accel_limit
 
-                # A speed is calculated as a function of the acceleration imposed in the previous steps
-                speed_calc = max(self.speed_m_s[self.step - 1] + a * self.delta_t[i], 0)
-                # Speed is smoothed to avoid oscillations
+                speed_calc = max(current_speed + a * delta_t_segment, 0.0)
+
+                # Smooth speed near boundary
                 if speed_calc - speed_limit < 0.1 or speed_calc > speed_limit:
                     self.speed_m_s.append(speed_limit)
                 else:
                     self.speed_m_s.append(speed_calc)
 
-                # Also the space is calculated as a function of the smoothed speed
-                self.space.append(self.space[self.step - 1] + self.speed_m_s[self.step] *
-                                   self.delta_t[i] + 0.5 * a * (self.delta_t[i] ** 2))
-
-                # Time is updated
-                self.time.append(self.time[self.step - 1] + self.delta_t[i])
-                # Step is updated
+                next_speed = self.speed_m_s[self.step]
+                step_space = (
+                        self.space[self.step - 1]
+                        + next_speed * delta_t_segment
+                        + 0.5 * a * (delta_t_segment ** 2)
+                )
+                self.space.append(step_space)
+                self.time.append(self.time[self.step - 1] + delta_t_segment)
                 self.step += 1
-            # print(contador)
 
-        # The only relevant feature here is the speed
+            if sim_steps >= MAX_SIMULATION_STEPS_PER_SEGMENT:
+                logger.warning(
+                    f"Simulation loop reached maximum threshold ({MAX_SIMULATION_STEPS_PER_SEGMENT}) at segment index {i}."
+                )
+
         return self.speed_m_s
 
-    def calculate_acceleration(self):
-        self.acceleration = [0]  # Restart to 0
-        # Parse speed to km/h
+    def _get_traction_acceleration(
+            self, current_speed: float, v1_ms: float, v2_ms: float, factor: float
+    ) -> float:
+        """Helper method to calculate traction acceleration based on speed range."""
+        ax_trac = getattr(self, "ax_trac", [2.0, 1.0, 0.5])
+        if len(ax_trac) < 3:
+            ax_trac = [2.0, 1.0, 0.5]
+
+        if current_speed < v1_ms:
+            return factor * ax_trac[1]
+        elif current_speed > v2_ms:
+            return factor * ax_trac[3]
+        else:
+            return factor * ax_trac[2]
+
+    def calculate_acceleration(self) -> List[float]:
+        """
+        Calculate step-wise acceleration series (m/s^2) based on speed and time vectors.
+
+        Returns:
+            List[float]: Acceleration series in m/s^2.
+        """
+        self.acceleration = [0.0]
         speed_km_h = [speed * 3.6 for speed in self.speed_m_s]
 
-        # Iterate over all number of segments (e.g. retrieved from length of speed
         for i in range(1, len(speed_km_h)):
-
-            if self.time[i] - self.time[i - 1] > 0:
-                # Calculate acceleration value with the difference of speeds in time
-                value = (1 / 3.6) * (speed_km_h[i] - speed_km_h[i - 1]) / (self.time[i] - self.time[i - 1])
+            dt = self.time[i] - self.time[i - 1] if i < len(self.time) else 0.0
+            if dt > 0.0:
+                val = (1.0 / 3.6) * (speed_km_h[i] - speed_km_h[i - 1]) / dt
             else:
-                value = 0
+                val = 0.0
 
-            if value > self.acceleration_limit:
-                self.acceleration.append(self.acceleration_limit)
+            accel_limit = getattr(self, "acceleration_limit", DEFAULT_ACCELERATION_LIMIT)
+            if val > accel_limit:
+                self.acceleration.append(accel_limit)
             else:
-                self.acceleration.append(value)
+                self.acceleration.append(val)
 
         return self.acceleration
 
-    def calculate_resistances(self):
-        self.resistances = [0]  # Restart to 0
-        # Parse speed to km/h
+    def calculate_resistances(self) -> List[float]:
+        """
+        Calculate total road-load resistance force (aerodynamic + rolling) in Newtons.
+
+        Returns:
+            List[float]: Resistance force series in Newtons.
+        """
+        self.resistances = []
         speed_km_h = [speed * 3.6 for speed in self.speed_m_s]
 
-        # Iterate over all number of segments (e.g. retrieved from length of speed
-        for i in range(len(self.speed_m_s)):
-            self.resistances.append(self.vehicle.A + self.vehicle.B * speed_km_h[i] +
-                                     self.vehicle.C * (speed_km_h[i] * speed_km_h[i]))
+        a_coeff = getattr(self.vehicle, "A", 0.0) or 0.0
+        b_coeff = getattr(self.vehicle, "B", 0.0) or 0.0
+        c_coeff = getattr(self.vehicle, "C", 0.0) or 0.0
+
+        for v in speed_km_h:
+            resistance = a_coeff + b_coeff * v + c_coeff * (v ** 2)
+            self.resistances.append(resistance)
 
         return self.resistances
 
-    def calculate_slopes_instant(self, heights):
+    def calculate_slopes_instant(self, heights: List[float]) -> None:
         """
-        Calculate slopes at each instant. Used only for experiments
-        :param heights:
-        :return:
+        Calculate instantaneous road slopes per simulation step from height elevation profile.
+
+        Args:
+            heights (List[float]): Elevation points in meters.
         """
-        self.slope_t = [0]  # Restart to 0
-        # Parse speed to km/h
+        self.slope_t = [0.0]
         speed_km_h = [speed * 3.6 for speed in self.speed_m_s]
 
         for i in range(1, len(heights)):
-            segment_length = (0.5 / 3.6) * (speed_km_h[i] + speed_km_h[i - 1]) * \
-                             (self.time[i] - self.time[i - 1])
+            dt = self.time[i] - self.time[i - 1] if i < len(self.time) else 0.0
+            avg_speed_kmh = (
+                0.5 * (speed_km_h[i] + speed_km_h[i - 1])
+                if i < len(speed_km_h)
+                else 0.0
+            )
+            segment_length = (avg_speed_kmh / 3.6) * dt
             delta_h = heights[i] - heights[i - 1]
 
-            if segment_length == 0:
-                self.slope_t.append(0)
+            if segment_length <= 0.0:
+                self.slope_t.append(0.0)
             else:
-                slope_value = delta_h / segment_length
-                if abs(slope_value) > 0.2:
-                    if speed_km_h[i] < 5:
-                        self.slope_t.append(0)
+                slope_val = delta_h / segment_length
+                if abs(slope_val) > MAX_SLOPE_VARIANCE:
+                    if i < len(speed_km_h) and speed_km_h[i] < 5.0:
+                        self.slope_t.append(0.0)
                     else:
-                        self.slope_t.append(0.2 * slope_value / abs(slope_value))
+                        self.slope_t.append(0.2 * (1.0 if slope_val > 0 else -1.0))
                 else:
-                    self.slope_t.append(slope_value)
+                    self.slope_t.append(slope_val)
 
-    def calculate_gravitational_resistances(self):
-        self.gravitational_resistances = [0]  # Restart to 0
+    def calculate_gravitational_resistances(self) -> List[float]:
+        """
+        Calculate gravitational resistance forces (N) based on slope gradient and vehicle mass.
+
+        Returns:
+            List[float]: Gravitational resistance force series in Newtons.
+        """
+        self.gravitational_resistances = []
+        mass = getattr(self.vehicle, "total_mass", 1500.0) or 1500.0
 
         for i in range(len(self.speed_m_s)):
-            self.gravitational_resistances.append(GRAVITY * self.vehicle.total_mass * self.slope_t[i])
+            slope = self.slope_t[i] if i < len(self.slope_t) else 0.0
+            grav_resistance = GRAVITY * mass * slope
+            self.gravitational_resistances.append(grav_resistance)
+
         return self.gravitational_resistances
