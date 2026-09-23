@@ -66,12 +66,15 @@ plugins:
       class: FastSimEnergyModel
 
   ambient_weather_provider:
-    - name: openweatherapi
-      class: OpenWeatherAPI
+
+    - name: static_pressure_provider
+      class: StaticPressureProvider
       config:
-        endpoint: "https://api.openweathermap.org/data/2.5/weather"
+        pressure_pa: 101325.0
+        temperature_celsius: 15
         weather_ambient_attributes:
           - "temp"
+          - "pressure"
 
   road_route_provider:
     - name: osrm

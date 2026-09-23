@@ -6,7 +6,7 @@ traction profiles, braking limits, and road geometry (slopes).
 """
 
 import logging
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import numpy as np
 
@@ -212,23 +212,67 @@ class SpeedProfile(SpeedProfileProvider):
 
         return self.acceleration
 
-    def calculate_resistances(self) -> List[float]:
-        """
-        Calculate total road-load resistance force (aerodynamic + rolling) in Newtons.
+    def calculate_resistances(
+            self,
+            pressures_pa: Optional[Union[List[float], np.ndarray]] = None,
+            temperatures_celsius: Optional[Union[List[float], np.ndarray]] = None,
+    ) -> List[float]:
+        """Calculate total road-load resistance force (A + B*v + C_adj*v^2) in Newtons using SI units (m/s).
+
+        Dynamically adjusts aerodynamic coefficient C based on atmospheric pressure (Pa)
+        and temperature (°C) retrieved from self.route.additional_info or explicit parameters.
 
         Returns:
             List[float]: Resistance force series in Newtons.
         """
-        self.resistances = []
+        speeds_m_s = np.asarray(self.speed_m_s, dtype=float)
 
-        a_coeff = getattr(self.vehicle, "A", 0.0) or 0.0
-        b_coeff = getattr(self.vehicle, "B", 0.0) or 0.0
-        c_coeff = getattr(self.vehicle, "C", 0.0) or 0.0
+        # Coefficients in SI units: A [N], B [N/(m/s)], C [N/(m/s)^2]
+        a_coeff = float(getattr(self.vehicle, "A", 0.0) or 0.0)
+        b_coeff = float(getattr(self.vehicle, "B", 0.0) or 0.0)
+        c_ref = float(getattr(self.vehicle, "C", 0.0) or 0.0)
 
-        for v in self.speed_m_s:
-            resistance = a_coeff + b_coeff * v + c_coeff * (v ** 2)
-            self.resistances.append(resistance)
+        # Extract additional_info dictionary from self.route if present
+        route = getattr(self, "route", None)
+        additional_info = getattr(route, "additional_info", {}) if route is not None else {}
+        if not isinstance(additional_info, dict):
+            additional_info = {}
 
+        # Extract pressure (Pa) from parameters -> route.additional_info
+        if pressures_pa is None:
+            pressures_pa = additional_info.get("pressures_pa") or additional_info.get("pressure")
+            # Remove last pressure
+            pressures_pa = pressures_pa[:-1]
+
+        # Extract temperature (°C) from parameters -> route.additional_info
+        if temperatures_celsius is None:
+            temperatures_celsius = additional_info.get("temperatures_celsius") or additional_info.get("temp")
+            # Remove last temperature
+            temperatures_celsius = temperatures_celsius[:-1]
+
+        # Dynamically adjust aerodynamic coefficient C based on local air density
+        if pressures_pa is not None and len(pressures_pa) == len(speeds_m_s):
+            pressures = np.asarray(pressures_pa, dtype=float)
+
+            p_ref = 101325.0  # Standard sea-level atmospheric pressure (Pa)
+            t_ref_k = 288.15  # Standard sea-level temperature (15°C in Kelvin)
+
+            if temperatures_celsius is not None and len(temperatures_celsius) == len(speeds_m_s):
+                temps_k = np.asarray(temperatures_celsius, dtype=float) + 273.15
+            else:
+                temps_k = np.full_like(pressures, t_ref_k)
+
+            # Air density ratio relative to ISA conditions (rho / rho_0)
+            air_density_ratio = (pressures / p_ref) * (t_ref_k / temps_k)
+
+            # Vector of point-by-point adjusted C coefficients
+            c_coeff = c_ref * air_density_ratio
+        else:
+            c_coeff = c_ref
+
+        # Road-load equation in SI units: F_res = A + B*v + C_adj*v^2
+        resistances_array = a_coeff + (b_coeff * speeds_m_s) + (c_coeff * (speeds_m_s ** 2))
+        self.resistances = resistances_array.tolist()
         return self.resistances
 
     def calculate_slopes_instant(self, heights: List[float]) -> None:

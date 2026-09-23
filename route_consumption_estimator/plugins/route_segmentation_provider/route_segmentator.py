@@ -6,9 +6,8 @@ and provides elevation slope calculation and intermediate coordinate interpolati
 """
 
 import logging
-import math
 from statistics import mean
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List
 
 import numpy as np
 import pandas as pd
@@ -118,9 +117,8 @@ class RouteSegmentator(RouteSegmentationProvider):
 
         distances = attributes_info.get("distances", [])
         slopes = attributes_info.get("slopes", [])
-        heights = attributes_info.get("heights", [])
-        maxspeed = attributes_info.get("maxspeed", [])
-        temp = attributes_info.get("temp", [])
+        target_indices = self.indices[:-1]
+        n_segments = len(target_indices)
 
         sum_distances_segment: List[float] = []
         mean_slope_segment: List[float] = []
@@ -133,14 +131,19 @@ class RouteSegmentator(RouteSegmentationProvider):
             mean_slope_segment.append(mean(seg_slopes) if seg_slopes else 0.0)
 
         segment_info = {
-            "segments": [route_coordinates[i] for i in self.indices[:-1]],
-            "segments_representation": [route_coordinates[i] for i in self.indices[:-1]],
-            "heights": [heights[i] for i in self.indices[:-1] if i < len(heights)],
-            "maxspeed": [maxspeed[i] for i in self.indices[:-1] if i < len(maxspeed)],
-            "temp": [temp[i] for i in self.indices[:-1] if i < len(temp)],
-            "distances": sum_distances_segment,
-            "slopes": mean_slope_segment,
-        }
+                           "segments": [route_coordinates[i] for i in self.indices[:-1]],
+                           "segments_representation": [route_coordinates[i] for i in self.indices[:-1]],
+                           "distances": sum_distances_segment,
+                           "slopes": mean_slope_segment,
+                       } | {
+                           key: (
+                               list(values)
+                               if len(values) == n_segments
+                               else [values[idx] for idx in target_indices if idx < len(values)]
+                           )
+                           for key, values in attributes_info.items()
+                           if key not in ("distances", "slopes") and isinstance(values, (list, tuple, np.ndarray))
+                       }
 
         return segment_info
 
@@ -169,19 +172,23 @@ class RouteSegmentator(RouteSegmentationProvider):
         avg_distances.iloc[0] = 0.0
         df["distance_traveled"] = avg_distances.cumsum()
 
-        # Create a column with the slope
-        height_diff = df["mean_height"].diff().fillna(0.0)
-        dist_traveled_diff = df["distance_traveled"].diff().fillna(0.0)
+        # Create a column with the slope -> Iterate over a loop
+        slope = [0]
+        for i in range(1, len(df)):
+            # Calculate difference of heights
+            height_difference = df.loc[i, 'mean_height'] - df.loc[i - 1, 'mean_height']
+            # Calculate difference of distance traveled
+            distance_traveled_difference = df.loc[i, 'distance_traveled'] - df.loc[i - 1, 'distance_traveled']
 
-        # Vectorized slope calculation (avoids division by zero)
-        slopes = np.where(
-            dist_traveled_diff > 0.0,
-            (height_diff / dist_traveled_diff) * 100.0,
-            0.0,
-        )
+            # Check the difference of distance traveled is valid
+            if distance_traveled_difference != 0:
+                slope.append((height_difference / distance_traveled_difference) * 100)
+            else:
+                # Otherwise set 0
+                slope.append(0)
 
         # Store the list
-        df['slope'] = slopes
+        df['slope'] = slope
         # Replace slope NaN values with 0
         df['slope'] = df['slope'].fillna(0)
         # Limit the values of the slope based on a realistic range
