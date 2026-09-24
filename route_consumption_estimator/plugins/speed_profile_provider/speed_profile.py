@@ -242,13 +242,15 @@ class SpeedProfile(SpeedProfileProvider):
         if pressures_pa is None:
             pressures_pa = additional_info.get("pressures_pa") or additional_info.get("pressure")
             # Remove last pressure
-            pressures_pa = pressures_pa[:-1]
+            if pressures_pa:
+                pressures_pa = pressures_pa[:-1]
 
         # Extract temperature (°C) from parameters -> route.additional_info
         if temperatures_celsius is None:
             temperatures_celsius = additional_info.get("temperatures_celsius") or additional_info.get("temp")
             # Remove last temperature
-            temperatures_celsius = temperatures_celsius[:-1]
+            if temperatures_celsius:
+                temperatures_celsius = temperatures_celsius[:-1]
 
         # Dynamically adjust aerodynamic coefficient C based on local air density
         if pressures_pa is not None and len(pressures_pa) == len(speeds_m_s):
