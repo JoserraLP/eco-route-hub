@@ -29,4 +29,6 @@ beautifulsoup4~=4.14.3
 fastsim~=2.1.5
 dotenv~=0.9.9
 python-dotenv~=1.2.1
-aiohttp
+aiohttp~=3.13.5
+sqlalchemy~=2.0.25
+psutil~=5.9.8

@@ -15,15 +15,16 @@ system:
     sqlalchemy_database_uri: ${DATABASE_URI}
     sqlalchemy_track_modifications: false
   output_variables:
-    - distance # m
-    - time # s
+    - model
+    - distance
+    - time
     - fuelEnergyKwh
+    - fuelEnergyKwhPer100Km
     - fuelLiters
     - fuelLitersPer100Km
-    - fuelEnergyKwhPer100Km
     - batteryEnergyKwh
     - batteryKwhPer100Km
-    - model
+    - telemetry
 plugins:
   road_infrastructure_provider:
     - name: nominatim

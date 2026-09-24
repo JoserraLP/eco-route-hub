@@ -89,13 +89,15 @@ def benchmarking() -> Tuple[Response, int]:
     output = convert_keys(routes)
 
     # Filter keys based on configured system output variables
-    filtered_output: List[Dict[str, Any]] = [
-        {
-            key: value
-            for key, value in item.items()
-            if key in current_app_config.output_variables and value
-        }
-        for item in output
-    ]
+    filtered_output: Dict = {
+        'pipelinePreparationMs': output['pipelinePreparationMs'],
+        'simulations': [
+            {
+                key: value
+                for key, value in item.items()
+                if key in current_app_config.output_variables and value
+            }
+            for item in output['simulations']
+        ]}
 
     return jsonify(filtered_output), 200

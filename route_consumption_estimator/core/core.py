@@ -6,6 +6,7 @@ speed profile estimation, and vehicle energy model evaluations.
 """
 
 import logging
+from collections import defaultdict
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
@@ -33,11 +34,71 @@ from route_consumption_estimator.domain.constants import (
 )
 from route_consumption_estimator.domain.graph_models import Coords
 from route_consumption_estimator.domain.route_model import RouteModel
+from route_consumption_estimator.profiling.workflow_profiler import WorkflowProfiler
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_POLYLINE_PRECISION = 5
 DEFAULT_ALPHA_SMOOTHING = 0.3
+
+
+def enrich_simulations_with_telemetry(
+        simulation_results: List[Dict[str, Any]],
+        profiler_data: Dict[str, Any]
+) -> Dict[str, Any]:
+    """
+    Enriches each model's simulation result directly with its execution telemetry
+    (time, CPU, memory) and aggregates global preparation pipeline timings.
+    """
+    global_wall_time_ms: float = 0.0
+    global_cpu_time_ms: float = 0.0
+    model_stages_map: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+
+    # Classify stages into preparation vs model-specific execution
+    for stage in profiler_data.get("stages", []):
+        metadata = stage.get("metadata", {})
+        model_name = metadata.get("vehicle_engine_model_name")
+
+        if model_name:
+            model_stages_map[model_name].append(stage)
+        else:
+            global_wall_time_ms += stage.get("wall_time_ms", 0.0)
+            global_cpu_time_ms += stage.get("cpu_time_ms", 0.0)
+
+    # Calculate aggregated telemetry per model
+    model_telemetry_map: Dict[str, Dict[str, Any]] = {}
+    for model_name, stages in model_stages_map.items():
+        exec_wall_ms = sum(s.get("wall_time_ms", 0.0) for s in stages)
+        exec_cpu_ms = sum(s.get("cpu_time_ms", 0.0) for s in stages)
+        peak_memory_mb = max((s.get("peak_memory_mb", 0.0) for s in stages), default=0.0)
+
+        model_telemetry_map[model_name] = {
+            "executionWallTimeMs": round(exec_wall_ms, 3),
+            "executionCpuTimeMs": round(exec_cpu_ms, 3),
+            "peakMemoryMb": round(peak_memory_mb, 4),
+        }
+
+    # Enrich simulation payload array with telemetry
+    enriched_simulations: List[Dict[str, Any]] = []
+    for sim in simulation_results:
+        sim_copy = sim.copy()
+        model_key = sim_copy.get("model")
+
+        sim_copy["telemetry"] = model_telemetry_map.get(
+            model_key,
+            {
+                "executionWallTimeMs": 0.0,
+                "executionCpuTimeMs": 0.0,
+                "peakMemoryMb": 0.0,
+            },
+        )
+        enriched_simulations.append(sim_copy)
+
+    # Final enriched response payload
+    return {
+        "pipelinePreparationMs": round(global_wall_time_ms, 3),
+        "simulations": enriched_simulations,
+    }
 
 
 class Core:
@@ -137,6 +198,8 @@ class Core:
             )
         )
 
+        self.profiler = WorkflowProfiler(workflow_name="route_simulation_benchmark")
+
     def _extract_config_values(self, alpha_override: Optional[float]) -> None:
         """Extract configuration attributes with fallbacks for CLI/non-Flask execution."""
         sys_config = None
@@ -182,19 +245,32 @@ class Core:
         Returns:
             List[Dict[str, Any]]: Combined list of routes with evaluation metrics and model tags.
         """
-        routes = self.route_processor.request_all_routes(coordinates)
-        if not routes:
-            logger.warning("No routes retrieved for benchmarking workflow.")
-            return []
+        with self.profiler.stage(
+                "request_routes",
+                provider_type=self.route_processor.__class__.__name__,
+                input_coordinates=coordinates,
+        ):
+            routes = self.route_processor.request_all_routes(coordinates)
+            if not routes:
+                logger.warning("No routes retrieved for benchmarking workflow.")
+                return []
 
-        routes_information = self.store_routes_into_graph(routes)
+        with self.profiler.stage(
+                "graph_processing",
+                provider_type=self.graph_engine.__class__.__name__,
+                input_coordinates=coordinates,
+        ):
+            routes_information = self.store_routes_into_graph(routes)
+
         estimations = self.estimate_consumption_routes(
             routes=routes,
             routes_information=routes_information,
             specific_energy_providers_names=self.specific_vehicle_energy_model_names,
+            profiler=self.profiler
         )
 
-        return [{**r, **e} for r, e in zip(routes, estimations)]
+        return enrich_simulations_with_telemetry(simulation_results=[{**r, **e} for r, e in zip(routes, estimations)],
+                                                 profiler_data=self.profiler.to_dict())
 
     def execute_route_estimation_workflow(
             self, coordinates: str
@@ -277,6 +353,7 @@ class Core:
             routes: List[Dict[str, Any]],
             routes_information: List[Dict[str, Any]],
             specific_energy_providers_names: Optional[List[str]] = None,
+            profiler: Optional[WorkflowProfiler] = None
     ) -> List[Dict[str, Any]]:
         """
         Run vehicle energy models over micro-segmented route profiles.
@@ -285,12 +362,12 @@ class Core:
             routes (List[Dict[str, Any]]): List of candidate route dictionaries.
             routes_information (List[Dict[str, Any]]): Segmented route metadata from graph engine.
             specific_energy_providers_names (Optional[List[str]]): Model names list to append to output.
+            profiler (Optional[WorkflowProfiler]): Metrics profiler
 
         Returns:
             List[Dict[str, Any]]: List of estimation dictionaries per route and vehicle model.
         """
         all_estimations: List[Dict[str, Any]] = []
-
         for i, route_info in enumerate(routes_information):
             encoded_route = ""
             if i < len(routes) and "segments_representation" in routes[i]:
@@ -314,11 +391,28 @@ class Core:
             for model_idx, vehicle_engine_model in enumerate(
                     self.vehicle_energy_model_providers
             ):
-                vehicle_engine_model.load_route_and_vehicle(
-                    route_model, self.vehicle_model
-                )
-                vehicle_engine_model.perform_speed_profile_estimation()
-                vehicle_engine_model.perform_power_energy_consumption_calculation()
+                with self.profiler.stage(
+                        "vehicle_engine_model.load_route_and_vehicle",
+                        provider_type=vehicle_engine_model.__class__.__name__,
+                        vehicle_engine_model_name=specific_energy_providers_names[model_idx]
+                ):
+                    vehicle_engine_model.load_route_and_vehicle(
+                        route_model, self.vehicle_model
+                    )
+
+                with self.profiler.stage(
+                        "vehicle_engine_model.perform_speed_profile_estimation",
+                        provider_type=vehicle_engine_model.__class__.__name__,
+                        vehicle_engine_model_name=specific_energy_providers_names[model_idx]
+                ):
+                    vehicle_engine_model.perform_speed_profile_estimation()
+
+                with self.profiler.stage(
+                        "vehicle_engine_model.perform_energy_consumption_calculation",
+                        provider_type=vehicle_engine_model.__class__.__name__,
+                        vehicle_engine_model_name=specific_energy_providers_names[model_idx]
+                ):
+                    vehicle_engine_model.perform_power_energy_consumption_calculation()
 
                 estimations = vehicle_engine_model.retrieve_estimations()
                 all_info = {**estimations, "route": rf"{encoded_route}"}
