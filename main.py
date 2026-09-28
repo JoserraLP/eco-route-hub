@@ -1,6 +1,6 @@
 import flask_monitoringdashboard as dashboard
 
-from route_consumption_estimator import create_app
+from eco_route_hub import create_app
 
 import argparse
 

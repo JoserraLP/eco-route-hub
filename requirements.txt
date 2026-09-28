@@ -1,34 +1,48 @@
-networkx~=3.2.1
-geopy~=2.4.1
-pandas~=2.3.3
-gmplot~=1.4.1
-requests~=2.31.0
-openrouteservice~=2.3.3
-pyvis~=0.3.2
-fastkml~=0.12
-shapely~=2.0.2
-matplotlib~=3.9.4
-setuptools~=68.2.2
+# Data Science & Numerical Computing
 numpy~=2.0.2
-pygeoif~=0.7
-flask~=3.0.0
-polyline~=2.0.1
-flask_marshmallow
-flask_sqlalchemy
-marshmallow-sqlalchemy
-pymysql
+pandas~=2.3.3
 scipy~=1.13.1
-cryptography
-openpyxl
-flask-monitoringdashboard
-pydantic~=1.10.19
-pyyaml~=6.0.3
-
--e .
-beautifulsoup4~=4.14.3
+networkx~=3.2.1
 fastsim~=2.1.5
-dotenv~=0.9.9
-python-dotenv~=1.2.1
-aiohttp~=3.13.5
+
+# Geospatial & Route Processing
+geopy~=2.4.1
+shapely~=2.0.2
+openrouteservice~=2.3.3
+polyline~=2.0.1
+pygeoif~=0.7
+fastkml~=0.12
+
+# Serialization & Validation (Fijado para prevenir incompatibilidad con pprint)
+marshmallow~=3.19.0
+flask-marshmallow~=1.2.0
+marshmallow-sqlalchemy~=1.0.0
+pydantic~=1.10.19
+
+# Web Framework & Database ORM
+flask~=3.0.0
+flask-sqlalchemy~=3.1.1
+pymysql~=1.1.0
 sqlalchemy~=2.0.25
+cryptography~=42.0.0
+flask-monitoringdashboard~=3.2.0
+
+# HTTP, Async & Environment Utilities
+requests~=2.31.0
+aiohttp~=3.13.5
+beautifulsoup4~=4.14.3
+pyyaml~=6.0.3
+python-dotenv~=1.2.1
+
+# System, Profiling & File Processing
 psutil~=5.9.8
+setuptools~=68.2.2
+openpyxl~=3.1.2
+
+# Visualization
+matplotlib~=3.9.4
+gmplot~=1.4.1
+pyvis~=0.3.2
+
+# Editable Local Install
+-e .

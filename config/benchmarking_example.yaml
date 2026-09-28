@@ -71,8 +71,8 @@ plugins:
     - name: static_pressure_provider
       class: StaticPressureProvider
       config:
-        pressure_pa: 101325.0
-        temperature_celsius: 15
+        pressure_pa: 201325.0
+        temperature_celsius: 30
         weather_ambient_attributes:
           - "temp"
           - "pressure"

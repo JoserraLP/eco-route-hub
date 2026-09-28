@@ -5,7 +5,7 @@
 [![API Spec](https://img.shields.io/badge/OpenAPI-3.0.3-brightgreen.svg)](openapi.yaml)
 [![License](https://img.shields.io/badge/license-MIT-informational.svg)](LICENSE)
 
-**EcoRouteHub** (`route_consumption_estimator`) is an open framework and RESTful service designed for simulating vehicle speed profiles, evaluating kinematic energy consumption, and benchmarking route efficiency across physics and data-driven simulation engines (such as `greta` and `fastsim`).
+**EcoRouteHub** (`eco_route_hub`) is an open framework and RESTful service designed for simulating vehicle speed profiles, evaluating kinematic energy consumption, and benchmarking route efficiency across physics and data-driven simulation engines (such as `greta` and `fastsim`).
 
 ---
 
@@ -108,7 +108,7 @@ API_KEY=KEY
 python main.py
 
 # Production WSGI server
-gunicorn --bind 0.0.0.0:5001 route_consumption_estimator.wsgi:app
+gunicorn --bind 0.0.0.0:5001 eco_route_hub.wsgi:app
 ```
 
 ---
@@ -120,7 +120,7 @@ The framework utilizes a MySQL database (`greta_app`) containing vehicle specifi
 Initialize the database schema and sample vehicle datasets using the SQL script:
 
 ```bash
-mysql -u root -p greta_app < vehicles_data/vehicles_db.sql
+mysql -u root -p greta_app < data/vehicles.sql
 ```
 
 ---
@@ -180,7 +180,7 @@ curl --location 'http://127.0.0.1:5001/benchmarking?source=39.556168%2C-6.415368
 Integrating a new data source or energy model into EcoRouteHub follows a structured 4-step process:
 
 ### Step 1: Category Identification & Configuration
-The integration process begins by identifying the provider category that best matches the information to be incorporated. The available abstractions located in `route_consumption_estimator/interfaces/` include:
+The integration process begins by identifying the provider category that best matches the information to be incorporated. The available abstractions located in `eco_route_hub` include:
 * `VehicleInformationProvider`
 * `RoadRouteProvider`
 * `SpeedProfileProvider`
@@ -189,15 +189,16 @@ The integration process begins by identifying the provider category that best ma
 * `TrafficOperationProvider`
 * `VehicleEnergyModelProvider`
 
-Once the appropriate provider type has been selected, the developer defines the provider-specific configuration parameters required by the target data source or service in `route_consumption_estimator/config.py` or `.env`. Typical parameters may include service endpoints, authentication credentials, supported attributes, refresh policies, filtering criteria, or provider-specific processing options. These configuration elements determine both how the provider acquires information and which data will be exposed to the rest of the framework.
+Once the appropriate provider type has been selected, the developer defines the provider-specific configuration parameters required by the target data source or service in `eco_route_hub` or `.env`. Typical parameters may include service endpoints, authentication credentials, supported attributes, refresh policies, filtering criteria, or provider-specific processing options. These configuration elements determine both how the provider acquires information and which data will be exposed to the rest of the framework.
 
 ### Step 2: Interface Implementation
-After the configuration requirements have been identified, the new provider is implemented by extending the corresponding provider abstraction in `route_consumption_estimator/interfaces/` and conforming to the input and output contracts defined by the associated interfaces.
+After the configuration requirements have been identified, the new provider is implemented by extending the corresponding provider abstraction in `eco_route_hub` and conforming to the input and output contracts defined by the associated interfaces.
 
 ```python
 # Example: Custom Weather Provider implementation
-from route_consumption_estimator.interfaces.ambient_weather_provider import AmbientWeatherProvider
-from route_consumption_estimator.domain.route_model import RouteModel
+from eco_route_hub.interfaces.ambient_weather_provider import AmbientWeatherProvider
+from eco_route_hub.domain.route_model import RouteModel
+
 
 class CustomWeatherProvider(AmbientWeatherProvider):
     def __init__(self, api_key: str, endpoint: str):
@@ -210,7 +211,7 @@ class CustomWeatherProvider(AmbientWeatherProvider):
 ```
 
 ### Step 3: Registration & Auto-Discovery
-Once implemented, the provider is registered through the architecture configuration layer (`route_consumption_estimator/config.py` or `plugins.py`) by specifying its identifier, implementation class, execution parameters, and provider-specific configuration values, as represented in `config_base.yaml`. During framework initialization (`create_app()`), the provider is automatically discovered, validated, and instantiated together with the remaining registered components.
+Once implemented, the provider is registered through the architecture configuration layer (`eco_route_hub` or `plugins.py`) by specifying its identifier, implementation class, execution parameters, and provider-specific configuration values, as represented in `config_base.yaml`. During framework initialization (`create_app()`), the provider is automatically discovered, validated, and instantiated together with the remaining registered components.
 
 ### Step 4: Core Domain Integration & Data Availability
 After registration, in the case of information providers, the information supplied by the new provider becomes part of the common route representation (`RouteModel`) maintained by the architectural core. Consequently, the newly acquired attributes are immediately available to downstream components, including route-processing services, speed-profile generation modules, and vehicle energy-consumption models. This mechanism enables the architecture to evolve incrementally as new information sources become available, while preserving interoperability, reproducibility, and compatibility with existing experimental workflows.
