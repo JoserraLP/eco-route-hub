@@ -3,5 +3,6 @@
 
 .idea
 .DS_Store
-/route_consumption_estimator/flask_monitoringdashboard.db
-/route_consumption_estimator/route_map.html
+.venv
+/eco_route_hub/flask_monitoringdashboard.db
+/eco_route_hub/route_map.html
