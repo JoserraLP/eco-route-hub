@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
-  title: Swagger Petstore - OpenAPI 3.0
-  description: Eco-Traffic APP API
+  title: Eco Route Hub - OpenAPI 3.0
+  description: Eco Route Hub API
   termsOfService: http://swagger.io/terms/
   contact:
     email: joserralp@unex.es
@@ -11,7 +11,7 @@ info:
   version: 1.0.11
 externalDocs:
   description: Find out more about the API
-  url: https://github.com/JoserraLP/route-consumption-estimator
+  url: https://github.com/JoserraLP/eco-route-hub
 servers:
   - url: http://127.0.0.1:5001/
 tags:
@@ -29,6 +29,8 @@ tags:
     description: Everything about the routes performed by the user
   - name: vehicles
     description: Everything about the vehicles
+  - name: benchmarking
+    description: Everything about route benchmarking
 paths:
   /app_review:
     get:
@@ -43,14 +45,14 @@ paths:
           required: false
           description: user identifier
           schema:
-            type : integer
+            type: integer
             format: int64
         - name: app_review_id
           in: query
           required: false
           description: app review identifier
           schema:
-            type : integer
+            type: integer
             format: int64
       responses:
         '200':
@@ -60,7 +62,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/AppReview'          
+                  $ref: '#/components/schemas/AppReview'
         '400':
           description: Invalid status value
       security:
@@ -86,7 +88,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AppReview'          
+                $ref: '#/components/schemas/AppReview'
         '400':
           description: Invalid input
         '422':
@@ -115,7 +117,7 @@ paths:
       security:
         - api_key:
             - write:app_review
-            - read:app_review    
+            - read:app_review
   /feature_review:
     get:
       tags:
@@ -129,14 +131,14 @@ paths:
           required: false
           description: app review identifier
           schema:
-            type : integer
+            type: integer
             format: int64
         - name: feature_review_id
           in: query
           required: false
           description: feature review identifier
           schema:
-            type : integer
+            type: integer
             format: int64
       responses:
         '200':
@@ -146,7 +148,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/FeatureReview'          
+                  $ref: '#/components/schemas/FeatureReview'
         '400':
           description: Invalid status value
       security:
@@ -172,7 +174,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/FeatureReview'          
+                $ref: '#/components/schemas/FeatureReview'
         '400':
           description: Invalid input
         '422':
@@ -201,7 +203,7 @@ paths:
       security:
         - api_key:
             - write:feature_review
-            - read:feature_review    
+            - read:feature_review
   /user_stats:
     get:
       tags:
@@ -215,7 +217,7 @@ paths:
           required: false
           description: user identifier
           schema:
-            type : integer
+            type: integer
             format: int64
       responses:
         '200':
@@ -225,7 +227,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/UserStats'          
+                  $ref: '#/components/schemas/UserStats'
         '400':
           description: Invalid status value
       security:
@@ -251,7 +253,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UserStats'          
+                $ref: '#/components/schemas/UserStats'
         '400':
           description: Invalid input
         '422':
@@ -310,7 +312,7 @@ paths:
       security:
         - api_key:
             - write:user_stats
-            - read:user_stats            
+            - read:user_stats
   /users:
     get:
       tags:
@@ -318,7 +320,7 @@ paths:
       summary: Get all users
       description: Get all or filtered by email users
       operationId: get_users
-      parameters: 
+      parameters:
         - name: email
           in: query
           description: User email
@@ -334,7 +336,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/User'          
+                  $ref: '#/components/schemas/User'
         '400':
           description: Invalid status value
       security:
@@ -360,7 +362,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/User'          
+                $ref: '#/components/schemas/User'
         '400':
           description: Invalid input
         '422':
@@ -419,7 +421,7 @@ paths:
       security:
         - api_key:
             - write:users
-            - read:users        
+            - read:users
   /user_vehicles:
     get:
       tags:
@@ -433,14 +435,14 @@ paths:
           required: false
           description: user identifier
           schema:
-            type : integer
+            type: integer
             format: int64
         - name: user_vehicle_id
           in: query
           required: false
           description: user vehicle identifier
           schema:
-            type : integer
+            type: integer
             format: int64
       responses:
         '200':
@@ -450,7 +452,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/UserVehicle'          
+                  $ref: '#/components/schemas/UserVehicle'
         '400':
           description: Invalid status value
       security:
@@ -476,7 +478,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UserVehicle'          
+                $ref: '#/components/schemas/UserVehicle'
         '400':
           description: Invalid input
         '422':
@@ -535,7 +537,7 @@ paths:
       security:
         - api_key:
             - write:user_stats
-            - read:user_stats      
+            - read:user_stats
   /vehicles:
     get:
       tags:
@@ -567,7 +569,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Vehicle'          
+                  $ref: '#/components/schemas/Vehicle'
         '400':
           description: Invalid status value
       security:
@@ -593,7 +595,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Vehicle'          
+                $ref: '#/components/schemas/Vehicle'
         '400':
           description: Invalid input
         '422':
@@ -622,7 +624,7 @@ paths:
       security:
         - api_key:
             - write:vehicles
-            - read:vehicles    
+            - read:vehicles
   /user_routes:
     get:
       tags:
@@ -636,7 +638,7 @@ paths:
           required: false
           description: user identifier
           schema:
-            type : integer
+            type: integer
             format: int64
       responses:
         '200':
@@ -646,7 +648,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/UserRoute'          
+                  $ref: '#/components/schemas/UserRoute'
         '400':
           description: Invalid status value
       security:
@@ -672,7 +674,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UserRoute'          
+                $ref: '#/components/schemas/UserRoute'
         '400':
           description: Invalid input
         '422':
@@ -701,7 +703,7 @@ paths:
       security:
         - api_key:
             - write:user_routes
-            - read:user_routes             
+            - read:user_routes
   /routes:
     get:
       tags:
@@ -715,28 +717,28 @@ paths:
           required: true
           description: source coords (LAT,LON)
           schema:
-            type : string
+            type: string
             example: '0.0,0.0'
         - name: destination
           in: query
           required: true
           description: destination coords (LAT,LON)
           schema:
-            type : string
+            type: string
             example: '0.0,0.0'
         - name: inner_coords
           in: query
           required: false
           description: inner coords (LAT,LON), separated by ;
           schema:
-            type : string
+            type: string
             example: '0.0,0.0;0.0,0.0'
         - name: vehicle_id
           in: query
           required: true
           description: vehicle id
           schema:
-            type : integer
+            type: integer
             format: int64
             example: 1
         - name: additional_mass
@@ -744,7 +746,7 @@ paths:
           required: false
           description: additional mass for the route
           schema:
-            type : integer
+            type: integer
             format: int64
             example: 74
       responses:
@@ -755,7 +757,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Route'          
+                  $ref: '#/components/schemas/Route'
         '400':
           description: Invalid status value
       security:
@@ -782,14 +784,81 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PerformedRouteMetrics'  
-                         
+                $ref: '#/components/schemas/PerformedRouteMetrics'
+
         '400':
           description: Invalid status value
       security:
         - api_key:
             - write:route
             - read:route
+  /benchmarking:
+    get:
+      tags:
+        - benchmarking
+      summary: Execute a benchmarking workflow to compare route consumption models
+      description: Execute a benchmarking workflow across specified coordinates, vehicle, and load parameters
+      operationId: benchmarking
+      parameters:
+        - name: source
+          in: query
+          required: true
+          description: Mandatory origin coordinates in LAT,LON format
+          schema:
+            type: string
+            example: '38.8794,-6.9706'
+        - name: destination
+          in: query
+          required: true
+          description: Mandatory destination coordinates in LAT,LON format
+          schema:
+            type: string
+            example: '38.8794,-6.9706'
+        - name: models
+          in: query
+          required: false
+          description: Comma-separated list of model names to benchmark
+          schema:
+            type: string
+            example: 'greta,fastsim'
+        - name: inner_coords
+          in: query
+          required: false
+          description: Intermediate waypoint coordinates in LAT,LON format separated by semicolon
+          schema:
+            type: string
+            example: '38.8700,-6.9700;38.8800,-6.9800'
+        - name: vehicle_id
+          in: query
+          required: false
+          description: Target vehicle identifier
+          schema:
+            type: integer
+            format: int64
+            example: 1
+        - name: additional_mass
+          in: query
+          required: false
+          description: Additional load mass in kg
+          schema:
+            type: number
+            format: float
+            example: 74.0
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BenchmarkingResult'
+        '400':
+          description: Parameters "source" and "destination" are required or invalid numeric value
+        '500':
+          description: Error executing benchmarking workflow
+      security:
+        - api_key:
+            - write:benchmarking
+            - read:benchmarking
 components:
   schemas:
     AppReview:
@@ -917,7 +986,7 @@ components:
           type: integer
           format: int64
           example: 1
-        Age: 
+        Age:
           type: integer
           format: int64
           example: 6
@@ -952,7 +1021,7 @@ components:
         BirthDate:
           type: string
           example: "01/01/2000"
-        Gender: 
+        Gender:
           type: string
           example: "female"
         DrivingLicenseYear:
@@ -1026,7 +1095,7 @@ components:
         SelectedRouteType:
           type: string
           example: ECO
-          enum: 
+          enum:
           - ECO
           - FASTEST
           - SHORTEST
@@ -1192,6 +1261,103 @@ components:
           type: integer
           format: int64
           example: 5
+    BenchmarkingTelemetry:
+      type: object
+      properties:
+        executionCpuTimeMs:
+          type: number
+          format: float
+          example: 8187.5
+        executionWallTimeMs:
+          type: number
+          format: float
+          example: 8160.911
+        peakMemoryMb:
+          type: number
+          format: float
+          example: 4.6233
+      required:
+        - executionCpuTimeMs
+        - executionWallTimeMs
+        - peakMemoryMb
+
+    BenchmarkingSimulation:
+      type: object
+      properties:
+        distance:
+          type: number
+          format: float
+          example: 11050.583624363573
+        fuelEnergyKwh:
+          type: number
+          format: float
+          example: 4.797347641042175
+        fuelEnergyKwhPer100Km:
+          type: number
+          format: float
+          example: 43.41261786812156
+        fuelLiters:
+          type: number
+          format: float
+          example: 0.5388705131259838
+        fuelLitersPer100Km:
+          type: number
+          format: float
+          example: 4.876398672174371
+        model:
+          type: string
+          example: "greta"
+        telemetry:
+          $ref: '#/components/schemas/BenchmarkingTelemetry'
+        time:
+          type: number
+          format: float
+          example: 957.8063971380233
+      required:
+        - distance
+        - model
+        - telemetry
+        - time
+
+    BenchmarkingResult:
+      type: object
+      properties:
+        pipelinePreparationMs:
+          type: number
+          format: float
+          example: 13458.292
+        simulations:
+          type: array
+          items:
+            $ref: '#/components/schemas/BenchmarkingSimulation'
+      required:
+        - pipelinePreparationMs
+        - simulations
+      example:
+        pipelinePreparationMs: 10.5
+        simulations:
+          - distance: 100.0
+            fuelEnergyKwh: 1.0
+            fuelEnergyKwhPer100Km: 50.0
+            fuelLiters: 0.50
+            fuelLitersPer100Km: 5.0
+            model: "greta"
+            telemetry:
+              executionCpuTimeMs: 8000.0
+              executionWallTimeMs: 8000.0
+              peakMemoryMb: 4.0
+            time: 60.0
+          - distance: 100.0
+            fuelEnergyKwh: 1.0
+            fuelEnergyKwhPer100Km: 50.0
+            fuelLiters: 0.50
+            fuelLitersPer100Km: 5.0
+            model: "fastsim"
+            telemetry:
+              executionCpuTimeMs: 8000.0
+              executionWallTimeMs: 8000.0
+              peakMemoryMb: 4.0
+            time: 60.0
   securitySchemes:
     api_key:
       type: apiKey

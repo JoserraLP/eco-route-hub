@@ -22,7 +22,7 @@ from pathlib import Path
 PACKAGE_DIR = Path(__file__).parent.resolve()
 
 # Default configuration file path
-CONFIG_FILE_DIR = PACKAGE_DIR / "config" / "config.yaml"
+CONFIG_FILE_DIR = PACKAGE_DIR / "config" / "config_base.yaml"
 
 # Load environment variables from a .env file
 load_dotenv()

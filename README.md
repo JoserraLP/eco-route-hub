@@ -89,7 +89,24 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### 3.3. Environment Configuration (`.env`)
+### 3.3. Infrastructure Deployment (Docker Compose)
+
+To ensure experimental reproducibility, the core geospatial routing engines, elevation services, geocoders, and database backend are fully containerized using Docker.
+
+* **Container Engine:** Docker (v20.10+) and Docker Compose (v2.0+).
+* **Hardware Allocation:** A host machine with at least **16 GB RAM** is strongly recommended due to spatial indexing and graph loading memory demands (e.g., Nominatim requires `shm_size: 4gb`, and OpenRouteService is configured with a 4 GB Java Heap limit).
+* **Data File Preparation:** Ensure raw map files (`spain-latest.osm.pbf` and `spain-latest.osrm`) are placed in their respective mounted directories prior to initialization:
+  * `./openrouteservice/data/`
+  * `./opentopodata/data/`
+  * `./opensourceroutingmachine/data/`
+
+To launch the multi-container stack—comprising **OpenRouteService** (`:8081`), **OSRM** (`:5002`), **Nominatim** (`:8082`), **OpenTopoData** (`:5000`), and **MySQL 8.0** (`:3306`)—execute:
+
+```bash
+docker compose up -d
+```
+
+### 3.4. Environment Configuration (`.env`)
 
 Create a `.env` file in the root directory of the project:
 
@@ -101,7 +118,7 @@ DATABASE_URI=mysql+pymysql://user:password@localhost:3306/greta_app
 API_KEY=KEY
 ```
 
-### 3.4. Running the Application
+### 3.5. Running the Application
 
 ```bash
 # Development server
