@@ -4,6 +4,8 @@
 [![Framework](https://img.shields.io/badge/Framework-Flask-green.svg)](https://flask.palletsprojects.com/)
 [![API Spec](https://img.shields.io/badge/OpenAPI-3.0.3-brightgreen.svg)](openapi.yaml)
 [![License](https://img.shields.io/badge/license-MIT-informational.svg)](LICENSE)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23058863.svg)](https://doi.org/10.5281/zenodo.23058863)
+
 
 **EcoRouteHub** (`eco_route_hub`) is an open framework and RESTful service designed for simulating vehicle speed profiles, evaluating kinematic energy consumption, and benchmarking route efficiency across physics and data-driven simulation engines (such as `greta` and `fastsim`).
 
