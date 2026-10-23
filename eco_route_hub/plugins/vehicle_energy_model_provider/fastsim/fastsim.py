@@ -672,6 +672,40 @@ class FastSimEnergyModel(VehicleEnergyModelProvider):
             effective_speeds = np.maximum(segment_speeds, self.minimum_moving_speed_mps)
             segment_times = segment_lengths / effective_speeds
 
+            cumulative_time = np.concatenate(([0.0], np.cumsum(segment_times)))
+            total_time_s = float(cumulative_time[-1])
+            raw_speeds = node_speeds
+            raw_slopes = segment_slopes
+
+        # 3. Interpolate to fixed resolution self.dt (1.0 s)
+        boundary_speeds = _align_to_xp(cumulative_time, raw_speeds)
+        boundary_slopes = _align_to_xp(cumulative_time, raw_slopes)
+
+        times = np.arange(0.0, total_time_s, self.dt, dtype=float)
+        if np.size(times) == 0 or not np.isclose(times[-1], total_time_s):
+            times = np.append(times, total_time_s)
+
+        speed_mps = np.interp(times, cumulative_time, boundary_speeds)
+        slope_series = np.interp(times, cumulative_time, boundary_slopes)
+
+        # 4. MANDATORY RESCALING: Adjust speed curve so integral matches target distance
+        simulated_distance_m = _integrate(speed_mps, times)
+        if simulated_distance_m > 1e-6 and expected_distance_m > 1e-6:
+            speed_mps *= (expected_distance_m / simulated_distance_m)
+
+        road_type = np.zeros(np.size(times), dtype=int)
+
+        cyc = cycle.Cycle(
+            times,
+            speed_mps,
+            slope_series,
+            road_type,
+            "custom_cycle",
+        )
+
+        self._validate_cycle(cyc, expected_distance_m)
+        return cyc
+
     @staticmethod
     def _validate_cycle(
             cyc: Any,
@@ -729,9 +763,7 @@ class FastSimEnergyModel(VehicleEnergyModelProvider):
     def perform_power_energy_consumption_calculation(self) -> Dict[str, Any]:
         cyc = self._build_cycle()
         veh = convert_vehicle_to_fastsim(self.vehicle)
-
-        if self.debug:
-            inspect_vehicle(veh)
+        # inspect_vehicle(veh)
 
         simulation = simdrive.SimDrive(cyc, veh)
         initial_soc = float(getattr(veh, "ess_init_soc", 0.6) or 0.6)
