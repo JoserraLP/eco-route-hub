@@ -116,8 +116,15 @@ Create a `.env` file in the root directory of the project:
 PORT=5001
 ENVIRONMENT=development
 LOG_LEVEL=INFO
+# Database Connection
 DATABASE_URI=mysql+pymysql://user:password@localhost:3306/greta_app
+
+# Application Security
 API_KEY=KEY
+
+# External Provider API Keys (required if these components are enabled)
+GRAPHHOPPER_KEY=your_graphhopper_api_key
+OPENWEATHER_API_KEY=your_openweather_api_key
 ```
 
 ### 3.5. Running the Application
