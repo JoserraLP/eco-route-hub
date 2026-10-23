@@ -58,6 +58,28 @@ class SpeedProfile(SpeedProfileProvider):
     ) -> None:
         super().__init__(route, vehicle)
 
+    def calculate_segment_lengths(self) -> List[float]:
+        """
+        Calculate the segment lengths
+
+        Returns:
+            List[float]: Segment lengths in meters.
+        """
+        num_points = len(self.route.segment_start_point)
+
+        for i in range(0, num_points - 1):
+            # Resolve segment destination and target speed limit
+            if i < getattr(self, "_num_segments", num_points - 1):
+                segment_end_point = self.route.segment_start_point[i + 1]
+            else:
+                segment_end_point = max(self.route.segment_start_point)
+
+            segment_length = segment_end_point - self.route.segment_start_point[i]
+            if i < len(self.segment_length):
+                self.segment_length[i] = segment_length
+            else:
+                self.segment_length = np.append(self.segment_length, segment_length)
+
     def estimate_speed_profile(self) -> List[float]:
         """
         Estimate instantaneous vehicle speed profile (m/s) over time for the target route.
@@ -225,13 +247,12 @@ class SpeedProfile(SpeedProfileProvider):
         Returns:
             List[float]: Resistance force series in Newtons.
         """
-        speeds_m_s = np.asarray(self.speed_m_s, dtype=float)
+        speed_km_h = np.asarray([speed * 3.6 for speed in self.speed_m_s], dtype=np.float64)
 
         # Coefficients in SI units: A [N], B [N/(m/s)], C [N/(m/s)^2]
-        a_coeff = float(getattr(self.vehicle, "A", 0.0) or 0.0)
-        b_coeff = float(getattr(self.vehicle, "B", 0.0) or 0.0)
+        a = float(getattr(self.vehicle, "A", 0.0) or 0.0)
+        b = float(getattr(self.vehicle, "B", 0.0) or 0.0)
         c_ref = float(getattr(self.vehicle, "C", 0.0) or 0.0)
-
         # Extract additional_info dictionary from self.route if present
         route = getattr(self, "route", None)
         additional_info = getattr(route, "additional_info", {}) if route is not None else {}
@@ -241,25 +262,23 @@ class SpeedProfile(SpeedProfileProvider):
         # Extract pressure (Pa) from parameters -> route.additional_info
         if pressures_pa is None:
             pressures_pa = additional_info.get("pressures_pa") or additional_info.get("pressure")
-            # Remove last pressure
             if pressures_pa:
-                pressures_pa = pressures_pa[:-1]
+                pressures_pa = pressures_pa[:len(speed_km_h)]
 
         # Extract temperature (°C) from parameters -> route.additional_info
         if temperatures_celsius is None:
             temperatures_celsius = additional_info.get("temperatures_celsius") or additional_info.get("temp")
-            # Remove last temperature
             if temperatures_celsius:
-                temperatures_celsius = temperatures_celsius[:-1]
+                temperatures_celsius = temperatures_celsius[:len(speed_km_h)]
 
         # Dynamically adjust aerodynamic coefficient C based on local air density
-        if pressures_pa is not None and len(pressures_pa) == len(speeds_m_s):
+        if pressures_pa is not None and len(pressures_pa) == len(speed_km_h):
             pressures = np.asarray(pressures_pa, dtype=float)
 
             p_ref = 101325.0  # Standard sea-level atmospheric pressure (Pa)
             t_ref_k = 288.15  # Standard sea-level temperature (15°C in Kelvin)
 
-            if temperatures_celsius is not None and len(temperatures_celsius) == len(speeds_m_s):
+            if temperatures_celsius is not None and len(temperatures_celsius) == len(speed_km_h):
                 temps_k = np.asarray(temperatures_celsius, dtype=float) + 273.15
             else:
                 temps_k = np.full_like(pressures, t_ref_k)
@@ -268,12 +287,12 @@ class SpeedProfile(SpeedProfileProvider):
             air_density_ratio = (pressures / p_ref) * (t_ref_k / temps_k)
 
             # Vector of point-by-point adjusted C coefficients
-            c_coeff = c_ref * air_density_ratio
+            c = c_ref * air_density_ratio
         else:
-            c_coeff = c_ref
+            c = c_ref
 
-        # Road-load equation in SI units: F_res = A + B*v + C_adj*v^2
-        resistances_array = a_coeff + (b_coeff * speeds_m_s) + (c_coeff * (speeds_m_s ** 2))
+        # Road-load equation in units: F_res = A + B*v + C_adj*v^2
+        resistances_array = a + (b * speed_km_h) + (c * (speed_km_h ** 2))
         self.resistances = resistances_array.tolist()
         return self.resistances
 

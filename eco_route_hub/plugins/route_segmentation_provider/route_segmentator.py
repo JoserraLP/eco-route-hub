@@ -76,7 +76,7 @@ class RouteSegmentator(RouteSegmentationProvider):
 
         indices = [0]
         last_slope = slopes[0]
-        n_points = len(max_speeds)
+        n_points = len(slopes)
 
         for i in range(1, n_points):
             new_segment = False

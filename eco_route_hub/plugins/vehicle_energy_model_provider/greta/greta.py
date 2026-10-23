@@ -20,13 +20,17 @@ from eco_route_hub.plugins.vehicle_energy_model_provider.greta.power_energy impo
 
 logger = logging.getLogger(__name__)
 
-KWH_PER_GGE = 33.7
-LITERS_PER_GALLON = 3.785411784
-KWH_PER_LITER = KWH_PER_GGE / LITERS_PER_GALLON
-
-
 def _is_electric_vehicle(vehicle: Optional[VehicleModel]) -> bool:
-    """Determine if vehicle is an Electric Vehicle (EV/BEV)."""
+    """
+    Determine if a vehicle model represents an Electric Vehicle (EV/BEV).
+
+    Args:
+        vehicle (Optional[VehicleModel]): Vehicle model instance to inspect, or None.
+
+    Returns:
+        bool: True if the vehicle's motor type corresponds to an electric powertrain,
+            False otherwise.
+    """
     if vehicle is None:
         return False
 
@@ -41,11 +45,26 @@ def _is_electric_vehicle(vehicle: Optional[VehicleModel]) -> bool:
 
 
 def _get_last_element(sequence: Any, name: str) -> float:
-    """Safely extract the terminal value from a list or NumPy array as a float."""
+    """
+    Safely extract the terminal value from a sequence or array as a float.
+
+    Validates that the input is non-empty and that the last element is a finite number.
+
+    Args:
+        sequence (Any): Input list, tuple, or array-like object containing numeric values.
+        name (str): Parameter identifier name used for descriptive exception messages.
+
+    Returns:
+        float: The terminal (last) numeric value of the sequence.
+
+    Raises:
+        ValueError: If sequence is None, empty, or contains a non-finite
+            terminal value (e.g., NaN or infinity).
+    """
     if sequence is None:
         raise ValueError(f"Sequence '{name}' cannot be None.")
 
-    array = np.reshape(np.asarray(sequence, dtype=float),-1)
+    array = np.reshape(np.asarray(sequence, dtype=float), -1)
     if len(array) == 0:
         raise ValueError(f"Sequence '{name}' is empty.")
 
@@ -64,9 +83,9 @@ class GretaEnergyModel(VehicleEnergyModelProvider):
     """
 
     def __init__(
-        self,
-        route: Optional[RouteModel] = None,
-        vehicle: Optional[VehicleModel] = None,
+            self,
+            route: Optional[RouteModel] = None,
+            vehicle: Optional[VehicleModel] = None,
     ) -> None:
         super().__init__(route, vehicle)
         self.speed_profile: Optional[SpeedProfile] = (
@@ -77,9 +96,9 @@ class GretaEnergyModel(VehicleEnergyModelProvider):
         self.power_estimator: Optional[PowerEnergyEstimator] = None
 
     def load_route_and_vehicle(
-        self,
-        route: RouteModel,
-        vehicle: VehicleModel,
+            self,
+            route: RouteModel,
+            vehicle: VehicleModel,
     ) -> None:
         super().load_route_and_vehicle(route, vehicle)
         self.speed_profile = SpeedProfile(
@@ -172,15 +191,11 @@ class GretaEnergyModel(VehicleEnergyModelProvider):
             battery_kwh_per_100_km = None
 
             traction_energy_kwh = float(energy_kwh)
-            traction_energy_kwh_per_100_km = (
-                traction_energy_kwh / distance_km
-            ) * 100.0
-
-            fuel_energy_kwh = fuel_liters * KWH_PER_LITER
+            traction_energy_kwh_per_100_km = (traction_energy_kwh / distance_km) * 100.0
+            liters_conversion = float(getattr(self.vehicle, "liters_conversion"))
+            fuel_energy_kwh = fuel_liters * liters_conversion
             fuel_liters_per_100_km = (fuel_liters / distance_km) * 100.0
-            fuel_energy_kwh_per_100_km = (
-                fuel_energy_kwh / distance_km
-            ) * 100.0
+            fuel_energy_kwh_per_100_km = (fuel_energy_kwh / distance_km) * 100.0
 
         return {
             "distance": float(distance_m),

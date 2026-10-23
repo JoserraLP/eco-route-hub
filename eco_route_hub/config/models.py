@@ -74,7 +74,7 @@ class PluginsConfig(BaseModel):
 
     road_infrastructure_provider: Optional[List[SinglePluginConfig]] = None
     traffic_operation_provider: Optional[List[SinglePluginConfig]] = None
-    ambient_weather_provider: Optional[List[SinglePluginConfig]] = None
+    weather_provider: Optional[List[SinglePluginConfig]] = None
     road_route_provider: Optional[List[SinglePluginConfig]] = None
     driving_behavior_provider: Optional[SinglePluginConfig] = None
     speed_profile_provider: Optional[SinglePluginConfig] = None

@@ -56,12 +56,12 @@ plugins:
     - name: fastsim
       class: FastSimEnergyModel
 
-  ambient_weather_provider:
+  weather_provider:
     - name: openweatherapi
       class: OpenWeatherAPI
       config:
         endpoint: "https://api.openweathermap.org/data/2.5/weather"
-        weather_ambient_attributes:
+        weather_attributes:
           - "temp"
 
   road_route_provider:

@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Type
 
 from eco_route_hub.core.plugin_registry import PluginRegistry
 from eco_route_hub.domain.constants import (
-    PLUGIN_TYPE_AMBIENT_WEATHER_PROVIDER,
+    PLUGIN_TYPE_WEATHER_PROVIDER,
     PLUGIN_TYPE_DRIVING_BEHAVIOR_PROVIDER,
     PLUGIN_TYPE_ROAD_INFRASTRUCTURE_PROVIDER,
     PLUGIN_TYPE_ROAD_ROUTE_PROVIDER,
@@ -22,7 +22,7 @@ from eco_route_hub.domain.constants import (
     PLUGIN_TYPE_VEHICLE_INFORMATION_PROVIDER,
 )
 from eco_route_hub.interfaces import (
-    AmbientWeatherInformationProvider,
+    WeatherInformationProvider,
     DrivingBehaviorProvider,
     RoadInfrastructureInformationProvider,
     RoadRouteProvider,
@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 PLUGIN_TYPES: Dict[str, Type[Any]] = {
     PLUGIN_TYPE_TRAFFIC_OPERATION_PROVIDER: TrafficOperationInformationProvider,
-    PLUGIN_TYPE_AMBIENT_WEATHER_PROVIDER: AmbientWeatherInformationProvider,
+    PLUGIN_TYPE_WEATHER_PROVIDER: WeatherInformationProvider,
     PLUGIN_TYPE_DRIVING_BEHAVIOR_PROVIDER: DrivingBehaviorProvider,
     PLUGIN_TYPE_SPEED_PROFILE_PROVIDER: SpeedProfileProvider,
     PLUGIN_TYPE_ROAD_ROUTE_PROVIDER: RoadRouteProvider,
@@ -161,7 +161,7 @@ class PluginManager:
         """Safely extend and deduplicate required graph attributes from plugin configs."""
         attribute_keys = [
             "road_attributes",
-            "weather_ambient_attributes",
+            "weather_attributes",
             "traffic_operation_attributes",
         ]
         for key in attribute_keys:

@@ -5,7 +5,7 @@ Defines decoupled in-memory representations for entities transferred between
 API routes, domain services, and external calculation plugins.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
 
@@ -38,22 +38,29 @@ class VehicleDTO:
     unladen_veh_mass: float
     p_max_kw: float
     liters_conversion: float
-    resistance_factor: float
     A: float
     B: float
     C: float
+    coeff_a: float
+    coeff_b: float
+    coeff_c: float
+    gamma: float
+    r2: float
+    resistance_factor: Optional[float] = None
     vehicle_id: Optional[int] = None
     url: Optional[str] = ""
     image_url: Optional[str] = ""
 
     def recalculate_vehicle_coefficients(self, additional_mass: float) -> None:
         """Recalculate resistance parameter A with added passenger/payload mass."""
-        self.A = float(self.resistance_factor) * (float(self.unladen_veh_mass) + float(additional_mass)) * GRAVITY
-        if self.B == 0.0:
-            # Empirical estimation for light-duty vehicles (EPA standard conversion):
-            # B is typically proportional to vehicle mass (~0.002 to 0.005 N / (m/s) per kg)
-            # Or estimated from drivetrain viscous drag:
-            self.B = 0.003 * (float(self.unladen_veh_mass) + float(additional_mass) / 1000.0)
+        if self.resistance_factor:
+            self.A = float(self.resistance_factor) * (float(self.unladen_veh_mass) + float(additional_mass)) * GRAVITY
+
+            if self.B == 0.0:
+                # Empirical estimation for light-duty vehicles (EPA standard conversion):
+                # B is typically proportional to vehicle mass (~0.002 to 0.005 N / (m/s) per kg)
+                # Or estimated from drivetrain viscous drag:
+                self.B = 0.003 * (float(self.unladen_veh_mass) + float(additional_mass) / 1000.0)
 
 
 @dataclass

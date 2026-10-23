@@ -93,6 +93,16 @@ class SpeedProfileProvider(ABC):
             }
 
     @abstractmethod
+    def calculate_segment_lengths(self) -> List[float]:
+        """
+        Calculate the segment lengths
+
+        Returns:
+            List[float]: Segment lengths in meters.
+        """
+        pass
+
+    @abstractmethod
     def estimate_speed_profile(self) -> List[float]:
         """
         Estimate the complete velocity profile (m/s) across the route.

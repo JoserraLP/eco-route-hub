@@ -5,16 +5,51 @@ Utility functions for route analysis, kinematic conversions, signal smoothing, a
 import logging
 from typing import Dict, List, Optional
 
+import numpy as np
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_SMOOTHING_ALPHA = 0.3
 STOP_SPEED_THRESHOLD_MS = 0.8333333  # ~3 km/h in m/s
-SLOPE_SPEED_THRESHOLD_MS = 5.0      # 5 m/s (~18 km/h)
-MAX_ABS_SLOPE = 0.2                  # Max 20% gradient
+SLOPE_SPEED_THRESHOLD_MS = 1.38888888888888  # 1.38 m/s (~5 km/h)
+MAX_ABS_SLOPE = 0.2  # Max 20% gradient
+
+
+def calculate_experiment_info(experiment_time,
+                              experiment_consumptions):
+    """
+    Calculate total fuel consumption and total duration from experimental telemetry data.
+
+    Integrates instantaneous fuel consumption rates over time using trapezoidal integration,
+    treating negative consumption values as zero.
+
+    Args:
+        experiment_time (Sequence[float]): Sequence of timestamps for the experiment in seconds.
+        experiment_consumptions (Sequence[float]): Instantaneous fuel consumption rates
+            (e.g., in liters per hour).
+
+    Returns:
+        Dict[str, float]: Dictionary containing:
+            - fuelLiters (float): Total cumulative fuel consumed in liters.
+            - time (float): Final timestamp / total duration in seconds.
+    """
+    consumption = np.zeros(len(experiment_time), dtype=np.float64)
+
+    for i in range(1, len(experiment_consumptions)):
+        if experiment_consumptions[i] < 0:
+            consumption_value = 0
+        else:
+            consumption_value = experiment_consumptions[i]
+
+        consumption[i] = consumption[i - 1] + \
+                         (0.5 * (consumption_value + experiment_consumptions[i - 1]) *
+                          (experiment_time[i] - experiment_time[i - 1]) / 3600)
+    return {'fuelLiters': consumption[-1],
+            'time': experiment_time[-1]}
 
 
 def calculate_distances(
-    speeds: List[float], timestamps: List[float]
+        speeds: List[float], timestamps: List[float]
 ) -> List[float]:
     """
     Calculate cumulative distances traveled over time intervals.
@@ -40,7 +75,7 @@ def calculate_distances(
 
     for i in range(1, len(speeds)):
         dt = timestamps[i] - timestamps[i - 1]
-        distance = speeds[i] * max(0.0, dt)
+        distance = 0.5 * (speeds[i] + speeds[i - 1]) * max(0.0, dt)
         acc_distance += distance
         distances.append(acc_distance)
 
@@ -48,7 +83,7 @@ def calculate_distances(
 
 
 def calculate_slopes(
-    heights: List[float], speeds: List[float], times: List[float]
+        heights: List[float], speeds: List[float], times: List[float]
 ) -> List[float]:
     """
     Calculate route segment slopes (gradients) bounded by physical constraints.
@@ -88,7 +123,7 @@ def calculate_slopes(
 
 
 def smoothing_process(
-    input_list: List[float], alpha: Optional[float] = None
+        input_list: List[float], alpha: Optional[float] = None
 ) -> List[float]:
     """
     Apply Exponential Moving Average (EMA) smoothing to a series of numerical inputs.
@@ -127,10 +162,10 @@ def smoothing_process(
 
 
 def evaluate_consumption(
-    speeds: List[float],
-    accelerations: List[float],
-    total_length: float,
-    times: List[float],
+        speeds: List[float],
+        accelerations: List[float],
+        total_length: float,
+        times: List[float],
 ) -> Dict[str, int]:
     """
     Evaluate driving aggressiveness, speed variations, and stop metrics based on telemetry.
@@ -179,7 +214,15 @@ def evaluate_consumption(
 
 
 def get_num_stops_per_km_score(value: float) -> int:
-    """Score stops per kilometer (1 = Poor, 5 = Excellent)."""
+    """
+    Score driving behavior based on the number of stops per kilometer.
+
+    Args:
+        value (float): Number of vehicle stops per kilometer.
+
+    Returns:
+        int: Driving performance score ranging from 1 (Poor) to 5 (Excellent).
+    """
     if value >= 1.0:
         return 1
     elif 0.75 <= value < 1.0:
@@ -193,7 +236,16 @@ def get_num_stops_per_km_score(value: float) -> int:
 
 
 def get_acceleration_lower_threshold_score(value: float) -> int:
-    """Score percentage of time accelerating above minor threshold (0.1 m/s^2)."""
+    """
+    Score driving behavior based on time spent accelerating above a minor threshold (0.1 m/s²).
+
+    Args:
+        value (float): Fraction or percentage of total driving time spent
+            accelerating above 0.1 m/s².
+
+    Returns:
+        int: Driving performance score ranging from 1 (Poor) to 5 (Excellent).
+    """
     if value >= 0.60:
         return 1
     elif 0.40 <= value < 0.60:
@@ -207,7 +259,16 @@ def get_acceleration_lower_threshold_score(value: float) -> int:
 
 
 def get_acceleration_greater_threshold_score(value: float) -> int:
-    """Score percentage of time accelerating above aggressive threshold (2.5 m/s^2)."""
+    """
+    Score driving behavior based on time spent accelerating above an aggressive threshold (2.5 m/s²).
+
+    Args:
+        value (float): Fraction or percentage of total driving time spent
+            accelerating above 2.5 m/s².
+
+    Returns:
+        int: Driving performance score ranging from 1 (Poor) to 5 (Excellent).
+    """
     if value >= 0.05:
         return 1
     elif 0.03 <= value < 0.05:

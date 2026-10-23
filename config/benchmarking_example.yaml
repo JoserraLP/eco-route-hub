@@ -71,7 +71,7 @@ plugins:
     - name: static_pressure_provider
       class: StaticPressureProvider
       config:
-        pressure_pa: 201325.0
+        pressure_pa: 101325.0
         temperature_celsius: 30
         weather_ambient_attributes:
           - "temp"
@@ -83,7 +83,7 @@ plugins:
       config:
         endpoint: "http://localhost:5002/route/v1/driving/"
         params:
-          alternatives: 1
+          alternatives: 0
           geometries: "geojson"
           annotations: "nodes"
           overview: "full"

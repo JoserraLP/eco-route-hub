@@ -24,7 +24,7 @@ EARTH_RADIUS: Final[int] = 6371000
 
 PLUGIN_TYPE_ROAD_INFRASTRUCTURE_PROVIDER: Final[str] = "road_infrastructure_provider"
 PLUGIN_TYPE_TRAFFIC_OPERATION_PROVIDER: Final[str] = "traffic_operation_provider"
-PLUGIN_TYPE_AMBIENT_WEATHER_PROVIDER: Final[str] = "ambient_weather_provider"
+PLUGIN_TYPE_WEATHER_PROVIDER: Final[str] = "weather_provider"
 PLUGIN_TYPE_ROAD_ROUTE_PROVIDER: Final[str] = "road_route_provider"
 PLUGIN_TYPE_DRIVING_BEHAVIOR_PROVIDER: Final[str] = "driving_behavior_provider"
 PLUGIN_TYPE_SPEED_PROFILE_PROVIDER: Final[str] = "speed_profile_provider"
