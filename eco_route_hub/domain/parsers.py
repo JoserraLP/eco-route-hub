@@ -79,6 +79,11 @@ def vehicle_dto_to_dao(vehicle_dto: VehicleDTO) -> VehicleDAO:
         C=vehicle_dto.C,
         Url=vehicle_dto.url,
         ImageUrl=vehicle_dto.image_url,
+        CoeffA=vehicle_dto.coeff_a,
+        CoeffB=vehicle_dto.coeff_b,
+        CoeffC=vehicle_dto.coeff_c,
+        Gamma=vehicle_dto.gamma,
+        R2=vehicle_dto.r2
     )
 
 
@@ -91,10 +96,15 @@ def vehicle_dao_to_dto(vehicle_dao: VehicleDAO) -> VehicleDTO:
         unladen_veh_mass=float(vehicle_dao.UnladenVehMass),
         p_max_kw=float(vehicle_dao.PMaxKw),
         liters_conversion=float(vehicle_dao.LitersConversion),
-        resistance_factor=float(vehicle_dao.ResistanceFactor),
+        resistance_factor=float(vehicle_dao.ResistanceFactor) if vehicle_dao.ResistanceFactor else None,
         A=float(vehicle_dao.A),
         B=float(vehicle_dao.B),
         C=float(vehicle_dao.C),
+        coeff_a=vehicle_dao.CoeffA,
+        coeff_b=vehicle_dao.CoeffB,
+        coeff_c=vehicle_dao.CoeffC,
+        gamma=vehicle_dao.Gamma,
+        r2=vehicle_dao.R2,
         url=vehicle_dao.Url or "",
         image_url=vehicle_dao.ImageUrl or "",
     )

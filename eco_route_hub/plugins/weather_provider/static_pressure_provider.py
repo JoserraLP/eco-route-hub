@@ -1,5 +1,5 @@
 """
-Configurable ambient weather provider implementation.
+Configurable weather provider implementation.
 
 Provides constant or default atmospheric telemetry (pressure in Pa, temperature in °C)
 for route coordinates without making external API requests. Useful for testing,
@@ -15,8 +15,8 @@ except ImportError:
     polyline = None
 
 from eco_route_hub.domain.graph_models import Coords
-from eco_route_hub.interfaces.ambient_weather_provider import (
-    AmbientWeatherInformationProvider,
+from eco_route_hub.interfaces.weather_provider import (
+    WeatherInformationProvider,
 )
 
 logger = logging.getLogger(__name__)
@@ -26,7 +26,7 @@ DEFAULT_TEMPERATURE_CELSIUS: float = 15.0  # Standard ambient temperature (15°C
 DEFAULT_WEATHER_ATTRIBUTES: List[str] = ["temp", "pressure"]
 
 
-class StaticPressureProvider(AmbientWeatherInformationProvider):
+class StaticPressureProvider(WeatherInformationProvider):
     """
     Static weather provider that returns user-configured ambient pressure and temperature.
 
@@ -34,15 +34,15 @@ class StaticPressureProvider(AmbientWeatherInformationProvider):
         pressure_pa (float): Atmospheric pressure in Pascals (default: 101325.0 Pa).
         pressure_hpa (float, optional): Alternative pressure input in hPa/mbar (converted to Pa).
         temperature_celsius (float): Ambient temperature in °C (default: 15.0 °C).
-        ambient_weather_attributes (List[str]): Weather fields to retrieve (default: ["temp", "pressure"]).
+        weather_attributes (List[str]): Weather fields to retrieve (default: ["temp", "pressure"]).
     """
 
     def __init__(self, config: Dict[str, Any]) -> None:
-        endpoint = config.get("endpoint", "static://ambient_weather")
+        endpoint = config.get("endpoint", "static://weather")
         super().__init__(endpoint=endpoint)
 
-        self.ambient_weather_attributes: List[str] = config.get(
-            "ambient_weather_attributes", DEFAULT_WEATHER_ATTRIBUTES
+        self.weather_attributes: List[str] = config.get(
+            "weather_attributes", DEFAULT_WEATHER_ATTRIBUTES
         )
 
         # Allow setting pressure either directly in Pa or conveniently in hPa
@@ -57,7 +57,7 @@ class StaticPressureProvider(AmbientWeatherInformationProvider):
             config.get("temperature_celsius", DEFAULT_TEMPERATURE_CELSIUS)
         )
 
-    def retrieve_ambient_weather_info(
+    def retrieve_weather_info(
         self, route_coordinates: List[Coords]
     ) -> Dict[str, Any]:
         """
@@ -71,23 +71,23 @@ class StaticPressureProvider(AmbientWeatherInformationProvider):
         """
         n_points = len(route_coordinates)
 
-        self.ambient_weather_information = {
+        self.weather_information = {
             "coordinates": route_coordinates,
         }
 
-        if "temp" in self.ambient_weather_attributes:
-            self.ambient_weather_information["temp"] = [
+        if "temp" in self.weather_attributes:
+            self.weather_information["temp"] = [
                 self.temperature_celsius
             ] * n_points
 
-        if "pressure" in self.ambient_weather_attributes:
-            self.ambient_weather_information["pressure"] = [
+        if "pressure" in self.weather_attributes:
+            self.weather_information["pressure"] = [
                 self.pressure_pa
             ] * n_points
 
-        return self.ambient_weather_information
+        return self.weather_information
 
-    def retrieve_ambient_weather_info_by_polyline(
+    def retrieve_weather_info_by_polyline(
         self, encoded_polyline: str
     ) -> Dict[str, Any]:
         """
@@ -109,4 +109,4 @@ class StaticPressureProvider(AmbientWeatherInformationProvider):
         route_coordinates = [
             Coords(lat=lat, lon=lon) for lat, lon in decoded_points
         ]
-        return self.retrieve_ambient_weather_info(route_coordinates)
+        return self.retrieve_weather_info(route_coordinates)

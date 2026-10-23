@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from eco_route_hub.domain.graph_models import Coords
 from eco_route_hub.domain.constants import EARTH_RADIUS
 from eco_route_hub.interfaces import (
-    AmbientWeatherInformationProvider,
+    WeatherInformationProvider,
     RoadInfrastructureInformationProvider,
     RoadRouteProvider,
     RouteSegmentationProvider,
@@ -112,7 +112,7 @@ class RouteProcessor:
             road_infrastructure_providers: Any,
             road_route_providers: Any,
             traffic_operation_providers: Any = None,
-            ambient_weather_providers: Any = None,
+            weather_providers: Any = None,
     ) -> None:
         """
         Initialize the RouteProcessor with segmentation and attribute providers.
@@ -131,9 +131,9 @@ class RouteProcessor:
             TrafficOperationInformationProvider
         ] = _normalize_provider_list(traffic_operation_providers)
 
-        self._ambient_weather_providers: List[
-            AmbientWeatherInformationProvider
-        ] = _normalize_provider_list(ambient_weather_providers)
+        self._weather_providers: List[
+            WeatherInformationProvider
+        ] = _normalize_provider_list(weather_providers)
 
     def request_all_routes(self, coordinates_str: str) -> List[Dict[str, Any]]:
         """
@@ -249,13 +249,13 @@ class RouteProcessor:
                 if attr in traffic_info:
                     info[attr] = traffic_info[attr]
 
-        # Populate ambient weather attributes
-        for weather_provider in self._ambient_weather_providers:
-            weather_info = weather_provider.retrieve_ambient_weather_info(
+        # Populate  weather attributes
+        for weather_provider in self._weather_providers:
+            weather_info = weather_provider.retrieve_weather_info(
                 route_extended_coordinates
             )
             attributes = (
-                    getattr(weather_provider, "ambient_weather_attributes", []) or []
+                    getattr(weather_provider, "weather_attributes", []) or []
             )
             for attr in attributes:
                 if attr in weather_info:

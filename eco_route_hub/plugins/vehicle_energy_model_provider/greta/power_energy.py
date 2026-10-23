@@ -80,7 +80,12 @@ class PowerEnergyEstimator:
 
         vehicle = self.speed_profile.vehicle
         total_mass = float(getattr(vehicle, "total_mass", 1000.0))
-        gamma = float(getattr(vehicle, "gamma", 1.0))
+        gamma = float(getattr(vehicle, "gamma", 1.05))
+        coeff_a = float(getattr(vehicle, "coeff_a", 0.02))
+        coeff_b = float(getattr(vehicle, "coeff_b", 0.21))
+        coeff_c = float(getattr(vehicle, "coeff_c", 0.36))
+        r2 = float(getattr(vehicle, "r2", 0.266))
+        r1 = 1 - r2
         p_max_kw = float(getattr(vehicle, "p_max_kw", 100.0))
         v1_km_h = float(getattr(vehicle, "v1_km_h", 50.0))
         liters_conversion = float(getattr(vehicle, "liters_conversion", 9.0))
@@ -105,7 +110,7 @@ class PowerEnergyEstimator:
             # Instantaneous trapezoidal energy (kWh)
             delta_t_s = times_s[i] - times_s[i - 1]
             self.instant_energy_kw_h[i] = (
-                0.5 * (self.power[i] + self.power[i - 1]) * delta_t_s / (3600.0 * 1000.0)
+                0.5 * (self.power[i] + self.power[i - 1]) * delta_t_s / 3600.0 / 1000.0
             )
 
             self.accumulated_engine_energy_kw_h[i] = (
@@ -119,7 +124,7 @@ class PowerEnergyEstimator:
 
             # Speed-dependent performance scaling factor
             if speeds_km_h[i] < v1_km_h:
-                factor = ((constants.R1 * speeds_km_h[i]) / v1_km_h) + constants.R2
+                factor = ((r1 * speeds_km_h[i]) / v1_km_h) + r2
             else:
                 factor = 1.0
 
@@ -127,9 +132,9 @@ class PowerEnergyEstimator:
 
             # Engine performance factor
             perf_val = (
-                (0.01 - (constants.CEXP * safe_factor))
-                * exp(-constants.BEXP * self.power_percentage[i] / safe_factor)
-                + (constants.CEXP * safe_factor)
+                (coeff_a - (coeff_c * safe_factor))
+                * exp(-coeff_b * self.power_percentage[i] / safe_factor)
+                + (coeff_c * safe_factor)
             )
             self.performance[i] = max(perf_val, 1e-6)
 
@@ -150,15 +155,11 @@ class PowerEnergyEstimator:
                         self.consumption_liters[i - 1] + idle_liters
                     )
                 else:
-                    avg_fixed_energy = 0.5 * (
-                        self.instant_energy_fixed_kw_h[i]
-                        + self.instant_energy_fixed_kw_h[i - 1]
-                    )
                     self.consumption_liters[i] = self.consumption_liters[i - 1] + (
-                        avg_fixed_energy / liters_conversion
+                            self.instant_energy_fixed_kw_h[i] / liters_conversion
                     )
 
-                self.consumption_kw_h[i] = self.accumulated_engine_energy_kw_h[i]
+            self.consumption_kw_h[i] = self.accumulated_engine_energy_kw_h[i]
 
     def calculate_experiment_consumption(
         self, experiment_consumptions: Sequence[float]

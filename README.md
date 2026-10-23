@@ -47,7 +47,7 @@ graph TD
         P1[Vehicle Information Provider]
         P2[Road Route Provider]
         P3[Speed Profile Provider]
-        P4[Ambient Weather Provider]
+        P4[Weather Provider]
         P5[Road Infrastructure Provider]
         P6[Traffic Operation Provider]
     end
@@ -116,8 +116,15 @@ Create a `.env` file in the root directory of the project:
 PORT=5001
 ENVIRONMENT=development
 LOG_LEVEL=INFO
+# Database Connection
 DATABASE_URI=mysql+pymysql://user:password@localhost:3306/greta_app
+
+# Application Security
 API_KEY=KEY
+
+# External Provider API Keys (required if these components are enabled)
+GRAPHHOPPER_KEY=your_graphhopper_api_key
+OPENWEATHER_API_KEY=your_openweather_api_key
 ```
 
 ### 3.5. Running the Application
@@ -139,54 +146,112 @@ The framework utilizes a MySQL database (`greta_app`) containing vehicle specifi
 Initialize the database schema and sample vehicle datasets using the SQL script:
 
 ```bash
-mysql -u root -p greta_app < data/vehicles.sql
+mysql -u root -p greta_app < data/data.sql
 ```
 
 ---
 
 ## 5. Benchmarking API Usage
 
+### 5.1. Benchmarking O-D routes
 The `/benchmarking` endpoint evaluates energy consumption across multiple simulation models simultaneously (e.g., `greta` and `fastsim`).
 
-### cURL Request
+#### cURL Request
 
 ```bash
-curl --location 'http://127.0.0.1:5001/benchmarking?source=39.556168%2C-6.415368&destination=39.471626%2C-6.387366&vehicle_id=3006&api_key=K4CH0P0-Eco-Traffic-App-Testing&models=greta%2Cfastsim&api_key=K4CH0P0-Eco-Traffic-App-Testing'
+curl --location 'http://127.0.0.1:5001/benchmarking?source=39.48029,-6.343703&destination=39.46167571457295,-6.383974867737618&vehicle_id=3026&additional_mass=150&api_key=K4CH0P0-Eco-Traffic-App-Testing&models=greta,fastsim'
 ```
 
-### JSON Response
+#### JSON Response
 
 ```json
 {
-    "pipelinePreparationMs": 12184.8,
+    "pipelinePreparationMs": 10233.448,
     "simulations": [
         {
-            "distance": 11050.583624363573,
-            "fuelEnergyKwh": 4.797347641042175,
-            "fuelEnergyKwhPer100Km": 43.41261786812156,
-            "fuelLiters": 0.5388705131259838,
-            "fuelLitersPer100Km": 4.876398672174371,
-            "model": "greta",
-            "telemetry": {
-                "executionCpuTimeMs": 1953.125,
-                "executionWallTimeMs": 1929.955,
-                "peakMemoryMb": 4.8364
+            "fastsim": {
+                "distance": 5918.804552338608,
+                "fuelEnergyKwh": 2.7079275650765986,
+                "fuelEnergyKwhPer100Km": 45.751258402453175,
+                "fuelLiters": 0.2943399527257173,
+                "fuelLitersPer100Km": 4.972962869831868,
+                "model": "fastsim",
+                "telemetry": {
+                    "executionCpuTimeMs": 1281.25,
+                    "executionWallTimeMs": 1282.968,
+                    "peakMemoryMb": 1.5063
+                },
+                "time": 560.0910826630716
             },
-            "time": 957.8063971380233
-        },
+            "greta": {
+                "distance": 5939.464885023122,
+                "fuelEnergyKwh": 3.6555272202167006,
+                "fuelEnergyKwhPer100Km": 61.54640680567757,
+                "fuelLiters": 0.39733991524094575,
+                "fuelLitersPer100Km": 6.689826826704085,
+                "model": "greta",
+                "telemetry": {
+                    "executionCpuTimeMs": 1437.5,
+                    "executionWallTimeMs": 1472.725,
+                    "peakMemoryMb": 1.4885
+                },
+                "time": 560.0910826630716
+            },
+            "route": "c}thjAl`ebKCA}Hli@a@`Ca@XgAtA_ArE^lEjDbEhPfLpa@~UvtAjw@nDhGz@|CnKviB]l\\}XzqCsEvd@eIvx@eCbXuGdVuBfD{HjCsJnNHfd@|G|Kl@jEh@bLyAbSaP|b@ukAv{AwEfJ{Tdf@iMrV{C~F_OrZ_f@zdAmEtULxl@jKnnAvJnpArBrZfAhOvVrcDH~IiJtTlA|EnB~Gi@lKiCdMeHd[HnRdEjRnDxG|m@|Tl^lJrUxr@wC|Tyk@ptBuAtVfCr^~b@laAlh@|aArIdQrJ|QnKlTxYjaAp[rm@djB`n@b\\sBn{Awf@bMgDxSgEdGGbLTfOzBnGvCnNpHfMGtHeK|e@gnAb`@|Kt{A|cArb@hW|QaBbNcAnDhAxHxG`DbChE_@rMfDtC~@~~@jn@fB|@nnAb{@xGtEtJtGz`Cj`BvbAfp@bPhFrQtClFlDp@xDIrC`ApJxBbF|FpEjPkAnD_ElCoLKqHgDkKsHgFcJF"
+        }
+    ]
+}
+```
+
+### 5.2. Benchmarking against real OBD data
+The `/benchmarking_file` endpoint evaluates energy consumption across multiple simulation models simultaneously (e.g., `greta` and `fastsim`) and compares it with real OBD measurements.
+
+#### cURL Request
+
+```bash
+curl --location 'http://127.0.0.1:5001/benchmarking_file?file=data/experiments/resultado1&vehicle_id=3025&additional_mass=150&api_key=K4CH0P0-Eco-Traffic-App-Testing&models=greta,fastsim'
+```
+
+#### JSON Response
+
+```json
+{
+    "measurements": {
+        "distance": 29817.2727583349,
+        "fuelLiters": 1.7894068335125808,
+        "time": 1616.63
+    },
+    "pipelinePreparationMs": 360.092,
+    "simulations": [
         {
-            "distance": 10979.804698250544,
-            "fuelEnergyKwh": 4.270929129501978,
-            "fuelEnergyKwhPer100Km": 38.89804278743211,
-            "fuelLiters": 0.4797396277580311,
-            "fuelLitersPer100Km": 4.369291084334769,
-            "model": "fastsim",
-            "telemetry": {
-                "executionCpuTimeMs": 2406.25,
-                "executionWallTimeMs": 2384.698,
-                "peakMemoryMb": 4.9904
+            "fastsim": {
+                "distance": 29817.272758334897,
+                "fuelEnergyKwh": 16.421729581936304,
+                "fuelEnergyKwhPer100Km": 55.074552642799624,
+                "fuelLiters": 1.784970606732207,
+                "fuelLitersPer100Km": 5.9863644176956115,
+                "model": "fastsim",
+                "telemetry": {
+                    "executionCpuTimeMs": 3500.0,
+                    "executionWallTimeMs": 3993.449,
+                    "peakMemoryMb": 1.6868
+                },
+                "time": 1616.5
             },
-            "time": 957.8393226416019
+            "greta": {
+                "distance": 29817.2727583349,
+                "fuelEnergyKwh": 16.51669466334908,
+                "fuelEnergyKwhPer100Km": 55.39304280849136,
+                "fuelLiters": 1.7952928981901177,
+                "fuelLitersPer100Km": 6.020982913966452,
+                "model": "greta",
+                "telemetry": {
+                    "executionCpuTimeMs": 609.375,
+                    "executionWallTimeMs": 614.554,
+                    "peakMemoryMb": 0.503
+                },
+                "time": 1616.63
+            }
         }
     ]
 }
@@ -203,7 +268,7 @@ The integration process begins by identifying the provider category that best ma
 * `VehicleInformationProvider`
 * `RoadRouteProvider`
 * `SpeedProfileProvider`
-* `AmbientWeatherProvider`
+* `WeatherProvider`
 * `RoadInfrastructureProvider`
 * `TrafficOperationProvider`
 * `VehicleEnergyModelProvider`
@@ -215,11 +280,11 @@ After the configuration requirements have been identified, the new provider is i
 
 ```python
 # Example: Custom Weather Provider implementation
-from eco_route_hub.interfaces.ambient_weather_provider import AmbientWeatherProvider
+from eco_route_hub.interfaces.weather_provider import WeatherInformationProvider
 from eco_route_hub.domain.route_model import RouteModel
 
 
-class CustomWeatherProvider(AmbientWeatherProvider):
+class CustomWeatherProvider(WeatherInformationProvider):
     def __init__(self, api_key: str, endpoint: str):
         self.api_key = api_key
         self.endpoint = endpoint
@@ -286,7 +351,7 @@ While dealing with new information, it may affect to the speed profile and resis
 │   │   ├── route_model.py
 │   │   └── vehicle_model.py
 │   ├── interfaces/                         # Interfaces/Contracts for providers
-│   │   ├── ambient_weather_provider.py
+│   │   ├── weather_provider.py
 │   │   ├── driving_behavior_provider.py
 │   │   ├── road_infrastructure_provider.py
 │   │   ├── road_route_provider.py
@@ -296,7 +361,7 @@ While dealing with new information, it may affect to the speed profile and resis
 │   │   ├── vehicle_energy_model_provider.py
 │   │   └── vehicle_information_provider.py
 │   ├── plugins/                            # Concrete provider implementations
-│   │   ├── ambient_weather_provider/       # Weather (e.g., OpenWeatherAPI)
+│   │   ├── weather_provider/       # Weather (e.g., OpenWeatherAPI)
 │   │   │   ├── openweatherapi.py
 │   │   │   └── static_pressure_provider.py
 │   │   ├── driving_behavior_provider/

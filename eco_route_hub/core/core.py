@@ -6,10 +6,12 @@ speed profile estimation, and vehicle energy model evaluations.
 """
 
 import logging
+from typing import Optional, Tuple, Any, Dict, List
+
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
+import pandas as pd
 import polyline
 
 from eco_route_hub.core.graph.graph_engine import GraphEngine
@@ -20,9 +22,10 @@ from eco_route_hub.core.utils import (
     calculate_slopes,
     evaluate_consumption,
     smoothing_process,
+    calculate_experiment_info
 )
 from eco_route_hub.domain.constants import (
-    PLUGIN_TYPE_AMBIENT_WEATHER_PROVIDER,
+    PLUGIN_TYPE_WEATHER_PROVIDER,
     PLUGIN_TYPE_DRIVING_BEHAVIOR_PROVIDER,
     PLUGIN_TYPE_ROAD_INFRASTRUCTURE_PROVIDER,
     PLUGIN_TYPE_ROAD_ROUTE_PROVIDER,
@@ -43,62 +46,153 @@ DEFAULT_ALPHA_SMOOTHING = 0.3
 
 
 def enrich_simulations_with_telemetry(
-        simulation_results: List[Dict[str, Any]],
-        profiler_data: Dict[str, Any]
+        simulation_results: List[Dict[str, Dict[str, Any]]],
+        profiler_data: Dict[str, Any],
 ) -> Dict[str, Any]:
-    """
-    Enriches each model's simulation result directly with its execution telemetry
-    (time, CPU, memory) and aggregates global preparation pipeline timings.
+    """Enriches simulation results by route, elevating route information to the route-item
+
+    root and appending model simulation outputs (e.g. 'greta', 'fastsim') along with
+    their execution telemetry.
     """
     global_wall_time_ms: float = 0.0
     global_cpu_time_ms: float = 0.0
+
+    route_model_stages: Dict[tuple, List[Dict[str, Any]]] = defaultdict(list)
     model_stages_map: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
 
-    # Classify stages into preparation vs model-specific execution
+    # Classify stages into preparation vs model-specific execution per route and model
     for stage in profiler_data.get("stages", []):
         metadata = stage.get("metadata", {})
-        model_name = metadata.get("vehicle_engine_model_name")
+        model_name = metadata.get("vehicle_engine_model_name") or metadata.get("model")
+        route_key = (
+                metadata.get("route")
+                or metadata.get("route_id")
+                or metadata.get("route_index")
+        )
 
         if model_name:
             model_stages_map[model_name].append(stage)
+            if route_key is not None:
+                route_model_stages[(str(route_key), str(model_name))].append(stage)
         else:
             global_wall_time_ms += stage.get("wall_time_ms", 0.0)
             global_cpu_time_ms += stage.get("cpu_time_ms", 0.0)
 
-    # Calculate aggregated telemetry per model
-    model_telemetry_map: Dict[str, Dict[str, Any]] = {}
-    for model_name, stages in model_stages_map.items():
+    def build_telemetry_dict(stages: List[Dict[str, Any]]) -> Dict[str, Any]:
+        if not stages:
+            return {
+                "executionWallTimeMs": 0.0,
+                "executionCpuTimeMs": 0.0,
+                "peakMemoryMb": 0.0,
+            }
         exec_wall_ms = sum(s.get("wall_time_ms", 0.0) for s in stages)
         exec_cpu_ms = sum(s.get("cpu_time_ms", 0.0) for s in stages)
         peak_memory_mb = max((s.get("peak_memory_mb", 0.0) for s in stages), default=0.0)
 
-        model_telemetry_map[model_name] = {
+        return {
             "executionWallTimeMs": round(exec_wall_ms, 3),
             "executionCpuTimeMs": round(exec_cpu_ms, 3),
             "peakMemoryMb": round(peak_memory_mb, 4),
         }
 
-    # Enrich simulation payload array with telemetry
+    # Fallback accumulated telemetry per model
+    model_telemetry_fallback = {
+        m: build_telemetry_dict(st) for m, st in model_stages_map.items()
+    }
+
     enriched_simulations: List[Dict[str, Any]] = []
-    for sim in simulation_results:
-        sim_copy = sim.copy()
-        model_key = sim_copy.get("model")
 
-        sim_copy["telemetry"] = model_telemetry_map.get(
-            model_key,
-            {
-                "executionWallTimeMs": 0.0,
-                "executionCpuTimeMs": 0.0,
-                "peakMemoryMb": 0.0,
-            },
-        )
-        enriched_simulations.append(sim_copy)
+    for route_idx, route_sims in enumerate(simulation_results):
+        enriched_route_item: Dict[str, Any] = {}
 
-    # Final enriched response payload
+        # 1. Extract route identifier to root
+        route_identifier = None
+        for sim_data in route_sims.values():
+            if isinstance(sim_data, dict):
+                route_identifier = sim_data.get("route") or sim_data.get("route_id")
+                if route_identifier:
+                    break
+
+        if route_identifier:
+            enriched_route_item["route"] = route_identifier
+
+        # 2. Add model with related telemetry
+        for model_key, sim_data in route_sims.items():
+            sim_copy = sim_data.copy()
+
+            # Remove 'route' from model to avoid duplication
+            sim_copy.pop("route", None)
+
+            # Search telemetry related to route and model
+            matched_stages = None
+            for r_k in (route_identifier, route_idx):
+                if r_k is not None and (str(r_k), str(model_key)) in route_model_stages:
+                    matched_stages = route_model_stages[(str(r_k), str(model_key))]
+                    break
+
+            if matched_stages:
+                sim_copy["telemetry"] = build_telemetry_dict(matched_stages)
+            else:
+                sim_copy["telemetry"] = model_telemetry_fallback.get(
+                    model_key,
+                    {
+                        "executionWallTimeMs": 0.0,
+                        "executionCpuTimeMs": 0.0,
+                        "peakMemoryMb": 0.0,
+                    },
+                )
+
+            enriched_route_item[model_key] = sim_copy
+
+        enriched_simulations.append(enriched_route_item)
+
     return {
         "pipelinePreparationMs": round(global_wall_time_ms, 3),
         "simulations": enriched_simulations,
     }
+
+
+def read_vehicle_obd_info(file: str):
+    """
+    Read vehicle OBD telemetry data from a file and calculate cumulative travel distance.
+
+    Args:
+        file (str): Path to the whitespace-delimited CSV file containing OBD route data.
+
+    Returns:
+        Tuple[List[float], List[float], List[float], List[float], List[float]]: A tuple containing:
+            - time_route (List[float]): List of time points.
+            - speed_route (List[float]): List of vehicle speed values.
+            - height_route (List[float]): List of elevation/height values.
+            - consumption_route (List[float]): List of energy/fuel consumption values.
+            - acc_space_list (List[float]): List of accumulated distance values.
+    """
+    route = pd.read_csv(file, sep='   ',
+                        names=["t", "v", "h", "consumo", "regimen_salida", "parmotor_obd_salida_route"],
+                        engine='python')
+
+    # Load from file routes
+    time_route = pd.to_numeric(route['t'])  # 1
+    speed_route = pd.to_numeric(route['v'])  # 2
+    height_route = pd.to_numeric(route['h'])  # 3
+    consumption_route = pd.to_numeric(route['consumo'])  # 4
+
+    # Calculate difference of time_route
+    time_route_difference = [0]
+    for i in range(1, len(time_route)):
+        time_route_difference.append(time_route[i] - time_route[i - 1])
+
+    # Calculate distance based on speed
+    space = [(speed_route[i] / 3.6) * time_route_difference[i] for i in range(len(time_route_difference))]
+    # Define list and accumulate
+    acc_space, acc_space_list = 0, [0]
+    # Append previous value
+    for i in range(len(space) - 1):
+        acc_space += space[i]
+        acc_space_list.append(acc_space)
+
+    # Return all relevant information
+    return time_route.tolist(), speed_route.tolist(), height_route.tolist(), consumption_route.tolist(), acc_space_list
 
 
 class Core:
@@ -125,6 +219,9 @@ class Core:
     ) -> None:
         self.registry = registry
         self.config = config or {}
+        self.vehicle_id = vehicle_id
+        self.models = models
+        self.additional_mass = additional_mass
 
         # Resolve system config attributes (dict or Flask context fallback)
         self.polyline_precision = DEFAULT_POLYLINE_PRECISION
@@ -138,8 +235,8 @@ class Core:
         self.traffic_operation_providers = registry.get_all(
             PLUGIN_TYPE_TRAFFIC_OPERATION_PROVIDER
         )
-        self.ambient_weather_providers = registry.get_all(
-            PLUGIN_TYPE_AMBIENT_WEATHER_PROVIDER
+        self.weather_providers = registry.get_all(
+            PLUGIN_TYPE_WEATHER_PROVIDER
         )
         self.road_route_providers = registry.get_all(
             PLUGIN_TYPE_ROAD_ROUTE_PROVIDER
@@ -183,7 +280,7 @@ class Core:
             road_infrastructure_providers=self.road_infrastructure_providers,
             road_route_providers=self.road_route_providers,
             traffic_operation_providers=self.traffic_operation_providers,
-            ambient_weather_providers=self.ambient_weather_providers,
+            weather_providers=self.weather_providers,
         )
 
         # Instantiate target vehicle model
@@ -201,7 +298,13 @@ class Core:
         self.profiler = WorkflowProfiler(workflow_name="route_simulation_benchmark")
 
     def _extract_config_values(self, alpha_override: Optional[float]) -> None:
-        """Extract configuration attributes with fallbacks for CLI/non-Flask execution."""
+        """
+        Extract configuration attributes with fallbacks for CLI or non-Flask execution.
+
+        Args:
+            alpha_override (Optional[float]): Custom value to override the default
+                alpha parameter setting, if provided.
+        """
         sys_config = None
         if "APP_CONFIG" in self.config:
             sys_config = getattr(self.config["APP_CONFIG"], "system", None)
@@ -268,9 +371,99 @@ class Core:
             specific_energy_providers_names=self.specific_vehicle_energy_model_names,
             profiler=self.profiler
         )
+        simulation_results = []
+        for _ in routes:
+            simulation_results.append({item['model']: item for item in estimations})
 
-        return enrich_simulations_with_telemetry(simulation_results=[{**r, **e} for r, e in zip(routes, estimations)],
+        return enrich_simulations_with_telemetry(simulation_results=simulation_results,
                                                  profiler_data=self.profiler.to_dict())
+
+    def estimate_consumption_from_file(self, file: str):
+        """
+        Estimate vehicle energy consumption from an OBD telemetry file across configured models.
+
+        Reads telemetry data, processes speed and elevation profiles, runs simulation models,
+        and returns enriched results containing predictions, execution profiling, and actual
+        experiment measurements.
+
+        Args:
+            file (str): Path to the CSV file containing OBD telemetry route data.
+
+        Returns:
+            Dict[str, Any]: Dictionary containing simulation results per model, performance
+                profiling telemetry, and experimental measurements (including fuel/energy
+                consumption and total route distance).
+        """
+        with self.profiler.stage(
+                "file_reading",
+                provider_type=self.__class__.__name__
+        ):
+            time_route, speed_route, height_route, consumption_route, acc_space_list = read_vehicle_obd_info(file)
+
+        with self.profiler.stage(
+                "data_processing",
+                provider_type=self.__class__.__name__
+        ):
+            # From km/h to m/s
+            speed_route = [x / 3.6 for x in speed_route]
+
+            all_estimations: List[Dict[str, Any]] = []
+            segment_start_point = calculate_distances(speed_route, time_route)
+            slopes = calculate_slopes(heights=height_route, speeds=speed_route, times=time_route)
+            additional_info = {'slopes': slopes, 'maxspeed': speed_route}
+            route = RouteModel(
+                segment_start_point=segment_start_point,
+                additional_info=additional_info
+            )
+
+        for model_idx, vehicle_engine_model in enumerate(
+                self.vehicle_energy_model_providers
+        ):
+            with self.profiler.stage(
+                    "vehicle_engine_model.load_route_and_vehicle",
+                    provider_type=vehicle_engine_model.__class__.__name__,
+                    vehicle_engine_model_name=self.specific_vehicle_energy_model_names[model_idx]
+            ):
+                vehicle_engine_model.load_route_and_vehicle(
+                    route, self.vehicle_model
+                )
+
+                vehicle_engine_model.speed_profile.speed_m_s = speed_route
+                vehicle_engine_model.speed_profile.time = time_route
+                vehicle_engine_model.speed_profile.slope_t = slopes
+
+            with self.profiler.stage(
+                    "vehicle_engine_model.perform_speed_profile_estimation",
+                    provider_type=vehicle_engine_model.__class__.__name__,
+                    vehicle_engine_model_name=self.specific_vehicle_energy_model_names[model_idx]
+            ):
+                vehicle_engine_model.perform_speed_profile_processing()
+
+            with self.profiler.stage(
+                    "vehicle_engine_model.perform_energy_consumption_calculation",
+                    provider_type=vehicle_engine_model.__class__.__name__,
+                    vehicle_engine_model_name=self.specific_vehicle_energy_model_names[model_idx]
+            ):
+                vehicle_engine_model.perform_power_energy_consumption_calculation()
+
+            estimations = vehicle_engine_model.retrieve_estimations()
+
+            if (
+                    self.specific_vehicle_energy_model_names
+                    and model_idx < len(self.specific_vehicle_energy_model_names)
+            ):
+                estimations["model"] = self.specific_vehicle_energy_model_names[model_idx]
+
+            all_estimations.append(estimations)
+
+        all_simulation_results = enrich_simulations_with_telemetry(
+            simulation_results=[{item['model']: item for item in all_estimations}],
+            profiler_data=self.profiler.to_dict())
+
+        all_simulation_results['measurements'] = (calculate_experiment_info(time_route, consumption_route)
+                                                  | {'distance': segment_start_point[-1]})
+
+        return all_simulation_results
 
     def execute_route_estimation_workflow(
             self, coordinates: str
@@ -296,8 +489,6 @@ class Core:
             return {}
 
         routes_estimations = [{**r, **e} for r, e in zip(routes, estimations)]
-
-        # Extract optimal route indexes safely
         consumption_idx = min(
             range(len(routes_estimations)),
             key=lambda i: routes_estimations[i].get("EnergyConsumption", float("inf")),
@@ -367,6 +558,9 @@ class Core:
         Returns:
             List[Dict[str, Any]]: List of estimation dictionaries per route and vehicle model.
         """
+        specific_energy_providers_names = specific_energy_providers_names if specific_energy_providers_names \
+            else self.specific_vehicle_energy_model_names
+
         all_estimations: List[Dict[str, Any]] = []
         for i, route_info in enumerate(routes_information):
             encoded_route = ""

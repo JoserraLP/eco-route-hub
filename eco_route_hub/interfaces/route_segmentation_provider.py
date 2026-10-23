@@ -31,7 +31,7 @@ class RouteSegmentationProvider(ABC):
         Segment a route by identifying key waypoint indices where attribute changes occur.
 
         Args:
-            attributes_info (Dict[str, Any]): Road and ambient attribute data 
+            attributes_info (Dict[str, Any]): Road and weather attribute data
                 mapped across route points/sections.
 
             Returns:

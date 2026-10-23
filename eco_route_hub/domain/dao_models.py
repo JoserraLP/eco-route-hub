@@ -6,7 +6,7 @@ historical route executions, user statistics, and application reviews.
 """
 
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, Any
 from eco_route_hub import db, ma
 from eco_route_hub.domain.enums import MotorTypeEnum, RouteTypeEnum, FeatureTopicEnum
 from eco_route_hub.domain.constants import GRAVITY
@@ -29,16 +29,10 @@ class UserDAO(db.Model):
     Gender = db.Column(db.String(20), nullable=True)
     DrivingLicenseYear = db.Column(db.String(10), nullable=True)
 
-    def __init__(
-        self,
-        Name: str,
-        Email: str,
-        Password: str,
-        BirthDate: Optional[datetime] = None,
-        Gender: Optional[str] = None,
-        DrivingLicenseYear: Optional[str] = None,
-        UserID: Optional[int] = None,
-    ) -> None:
+    def __init__(self, Name: str, Email: str, Password: str, BirthDate: Optional[datetime] = None,
+                 Gender: Optional[str] = None, DrivingLicenseYear: Optional[str] = None, UserID: Optional[int] = None,
+                 **kw: Any) -> None:
+        super().__init__(**kw)
         if UserID is not None:
             self.UserID = UserID
         self.Name = Name
@@ -74,28 +68,24 @@ class VehicleDAO(db.Model):
     UnladenVehMass = db.Column(db.Numeric(12, 5), nullable=False)
     PMaxKw = db.Column(db.Numeric(15, 5), nullable=False)
     LitersConversion = db.Column(db.Numeric(10, 4), nullable=False)
-    ResistanceFactor = db.Column(db.Numeric(20, 10), nullable=False)
     A = db.Column(db.Numeric(20, 10), nullable=False)
     B = db.Column(db.Numeric(20, 10), nullable=False)
     C = db.Column(db.Numeric(20, 10), nullable=False)
+    CoeffA = db.Column(db.Numeric(20, 10), nullable=False)
+    CoeffB = db.Column(db.Numeric(20, 10), nullable=False)
+    CoeffC = db.Column(db.Numeric(20, 10), nullable=False)
+    Gamma = db.Column(db.Numeric(20, 10), nullable=False)
+    R2 = db.Column(db.Numeric(20, 10), nullable=False)
     Url = db.Column(db.String(500), nullable=True)
     ImageUrl = db.Column(db.String(500), nullable=True)
+    ResistanceFactor = db.Column(db.Numeric(20, 10), nullable=True)
 
-    def __init__(
-        self,
-        Name: str,
-        MotorType: str,
-        UnladenVehMass: float,
-        PMaxKw: float,
-        LitersConversion: float,
-        ResistanceFactor: float,
-        A: float,
-        B: float,
-        C: float,
-        Url: Optional[str] = '',
-        ImageUrl: Optional[str] = '',
-        VehicleID: Optional[int] = None,
-    ) -> None:
+    def __init__(self, Name: str, MotorType: str, UnladenVehMass: float, PMaxKw: float, LitersConversion: float,
+                 A: float, B: float, C: float,
+                 CoeffA: float, CoeffB: float, CoeffC: float, Gamma: float, R2: float,
+                 ResistanceFactor: Optional[float] = None, Url: Optional[str] = '',
+                 ImageUrl: Optional[str] = '', VehicleID: Optional[int] = None, **kw: Any) -> None:
+        super().__init__(**kw)
         if VehicleID is not None:
             self.VehicleID = VehicleID
         self.Name = Name
@@ -103,10 +93,15 @@ class VehicleDAO(db.Model):
         self.UnladenVehMass = UnladenVehMass
         self.PMaxKw = PMaxKw
         self.LitersConversion = LitersConversion
-        self.ResistanceFactor = ResistanceFactor
         self.A = A
         self.B = B
         self.C = C
+        self.CoeffA = CoeffA
+        self.CoeffB = CoeffB
+        self.CoeffC = CoeffC
+        self.Gamma = Gamma
+        self.R2 = R2
+        self.ResistanceFactor = ResistanceFactor or None
         self.Url = Url or ''
         self.ImageUrl = ImageUrl or ''
 
@@ -115,12 +110,14 @@ class VehicleDAO(db.Model):
 
     def recalculate_vehicle_coefficients(self, additional_mass: float) -> None:
         """Recalculate resistance parameter A considering passenger and load mass."""
-        self.A = float(self.ResistanceFactor) * (float(self.UnladenVehMass) + float(additional_mass)) * GRAVITY
-        if self.B == 0.0:
-            # Empirical estimation for light-duty vehicles (EPA standard conversion):
-            # B is typically proportional to vehicle mass (~0.002 to 0.005 N / (m/s) per kg)
-            # Or estimated from drivetrain viscous drag:
-            self.B = 0.003 * (float(self.unladen_veh_mass) + float(additional_mass) / 1000)
+        if self.ResistanceFactor:
+            self.A = float(self.ResistanceFactor) * (float(self.UnladenVehMass) + float(additional_mass)) * GRAVITY
+
+            if self.B == 0.0:
+                # Empirical estimation for light-duty vehicles (EPA standard conversion):
+                # B is typically proportional to vehicle mass (~0.002 to 0.005 N / (m/s) per kg)
+                # Or estimated from drivetrain viscous drag:
+                self.B = 0.003 * (float(self.UnladenVehMass) + float(additional_mass) / 1000.0)
 
 
 class VehicleDAOSchema(ma.Schema):
@@ -129,7 +126,8 @@ class VehicleDAOSchema(ma.Schema):
     class Meta:
         fields = (
             'VehicleID', 'Name', 'MotorType', 'UnladenVehMass', 'PMaxKw',
-            'LitersConversion', 'ResistanceFactor', 'A', 'B', 'C', 'Url', 'ImageUrl'
+            'LitersConversion', 'ResistanceFactor', 'A', 'B', 'C', 'Url', 'ImageUrl',
+            'CoeffA', "CoeffB", "CoeffC", "Gamma", "R2"
         )
 
 
@@ -152,15 +150,9 @@ class UserVehicleDAO(db.Model):
     user = db.relationship('UserDAO', backref=db.backref('user_vehicles', cascade='all, delete-orphan'))
     vehicle = db.relationship('VehicleDAO', backref=db.backref('vehicle_users', cascade='all, delete-orphan'))
 
-    def __init__(
-        self,
-        UserID: int,
-        VehicleID: int,
-        Age: Optional[int] = None,
-        KmUsed: Optional[int] = None,
-        IsFav: int = 0,
-        ID: Optional[int] = None,
-    ) -> None:
+    def __init__(self, UserID: int, VehicleID: int, Age: Optional[int] = None, KmUsed: Optional[int] = None,
+                 IsFav: int = 0, ID: Optional[int] = None, **kw: Any) -> None:
+        super().__init__(**kw)
         if ID is not None:
             self.ID = ID
         self.UserID = UserID
@@ -214,31 +206,15 @@ class UserRouteDAO(db.Model):
 
     user = db.relationship('UserDAO', backref=db.backref('routes', cascade='all, delete-orphan'))
 
-    def __init__(
-        self,
-        UserID: int,
-        UserVehicleID: Optional[int],
-        AdditionalMass: int,
-        SourceCoords: str,
-        DestinationCoords: str,
-        SelectedRoutePolyline: str,
-        SelectedRouteType: str,
-        SelectedRouteConsumption: float,
-        SelectedRouteTime: int,
-        SelectedRouteDistance: int,
-        PerformedRoutePolyline: str,
-        PerformedRouteConsumption: float,
-        PerformedRouteTime: int,
-        PerformedRouteDistance: int,
-        PerformedRouteEstimatedConsumption: float,
-        PerformedRouteEstimatedTime: int,
-        PerformedRouteEstimatedDistance: int,
-        NumStopsKm: int = 0,
-        SpeedVariationNum: int = 0,
-        DrivingAggressiveness: int = 0,
-        RecordDate: Optional[datetime] = None,
-        ID: Optional[int] = None,
-    ) -> None:
+    def __init__(self, UserID: int, UserVehicleID: Optional[int], AdditionalMass: int, SourceCoords: str,
+                 DestinationCoords: str, SelectedRoutePolyline: str, SelectedRouteType: str,
+                 SelectedRouteConsumption: float, SelectedRouteTime: int, SelectedRouteDistance: int,
+                 PerformedRoutePolyline: str, PerformedRouteConsumption: float, PerformedRouteTime: int,
+                 PerformedRouteDistance: int, PerformedRouteEstimatedConsumption: float,
+                 PerformedRouteEstimatedTime: int, PerformedRouteEstimatedDistance: int, NumStopsKm: int = 0,
+                 SpeedVariationNum: int = 0, DrivingAggressiveness: int = 0, RecordDate: Optional[datetime] = None,
+                 ID: Optional[int] = None, **kw: Any) -> None:
+        super().__init__(**kw)
         if ID is not None:
             self.ID = ID
         self.UserID = UserID
@@ -299,15 +275,9 @@ class UserStatsDAO(db.Model):
 
     user = db.relationship('UserDAO', backref=db.backref('stats', uselist=False, cascade='all, delete-orphan'))
 
-    def __init__(
-        self,
-        UserID: int,
-        ConsumptionSaving: float = 0.0,
-        EcoTime: float = 0.0,
-        EcoDistance: float = 0.0,
-        EcoRoutesNum: int = 0,
-        DriveRating: float = 0.0,
-    ) -> None:
+    def __init__(self, UserID: int, ConsumptionSaving: float = 0.0, EcoTime: float = 0.0, EcoDistance: float = 0.0,
+                 EcoRoutesNum: int = 0, DriveRating: float = 0.0, **kw: Any) -> None:
+        super().__init__(**kw)
         self.UserID = UserID
         self.ConsumptionSaving = ConsumptionSaving
         self.EcoTime = EcoTime
@@ -342,13 +312,9 @@ class AppReviewDAO(db.Model):
 
     user = db.relationship('UserDAO', backref=db.backref('reviews', cascade='all, delete-orphan'))
 
-    def __init__(
-        self,
-        UserID: int,
-        GlobalComments: str,
-        GlobalScore: float,
-        AppReviewID: Optional[int] = None,
-    ) -> None:
+    def __init__(self, UserID: int, GlobalComments: str, GlobalScore: float, AppReviewID: Optional[int] = None,
+                 **kw: Any) -> None:
+        super().__init__(**kw)
         if AppReviewID is not None:
             self.AppReviewID = AppReviewID
         self.UserID = UserID
@@ -379,14 +345,9 @@ class FeatureReviewDAO(db.Model):
 
     app_review = db.relationship('AppReviewDAO', backref=db.backref('features', cascade='all, delete-orphan'))
 
-    def __init__(
-        self,
-        AppReviewID: int,
-        Topic: str,
-        Score: float,
-        Comments: str,
-        ID: Optional[int] = None,
-    ) -> None:
+    def __init__(self, AppReviewID: int, Topic: str, Score: float, Comments: str, ID: Optional[int] = None,
+                 **kw: Any) -> None:
+        super().__init__(**kw)
         if ID is not None:
             self.ID = ID
         self.AppReviewID = AppReviewID
